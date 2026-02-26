@@ -1,0 +1,97 @@
+{
+  "name": "Generate Rubric Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-rubric",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT a.id as assignment_id, a.name as assignment_name, a.intro as assignment_description, a.grade as max_grade, c.fullname as course_name FROM mdl_assign a JOIN mdl_course c ON a.course = c.id WHERE a.grade > 0 LIMIT 10",
+        "options": {}
+      },
+      "id": "fetch-assignment-info",
+      "name": "Fetch Assignment Info",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.GROQ_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"model\": \"qwen/qwen3-32b\", \"messages\": [ { \"role\": \"system\", \"content\": \"You are a rubric design expert. Create a comprehensive grading rubric with clear criteria, point distribution, and performance levels. Ensure the rubric is fair, measurable, and aligned with learning objectives. Respond in English or French only. Return ONLY a JSON object with: rubric_title (string), criteria (string), levels (string), points (string).\" }, { \"role\": \"user\", \"content\": \"Create a detailed grading rubric for: {{ $json.assignment_name }}. Description: {{ $json.assignment_description }}. Max Grade: {{ $json.max_grade }}. Course: {{ $json.course_name }}.\" } ], \"temperature\": 0.3, \"response_format\": { \"type\": \"json_object\" } }",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ai-generate-rubric",
+      "name": "AI Generate Rubric",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.item.json.choices?.[0]?.message?.content;\nlet rubric;\ntry {\n  rubric = JSON.parse(response);\n} catch (e) {\n  rubric = { title: 'Generated Rubric', criteria: [], error: 'Parse failed' };\n}\nreturn [{ json: { assignment_id: $('Fetch Assignment Info').item.json.assignment_id, rubric } }];"
+      },
+      "id": "process-rubric",
+      "name": "Process Rubric",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "={{ 'rubric_' + $json.assignment_id + '_' + $now.format('yyyy-MM-dd') + '.pdf' }}"
+        }
+      },
+      "id": "export-pdf",
+      "name": "Export to PDF",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Fetch Assignment Info", "type": "main", "index": 0 }]]
+    },
+    "Fetch Assignment Info": {
+      "main": [[{ "node": "AI Generate Rubric", "type": "main", "index": 0 }]]
+    },
+    "AI Generate Rubric": {
+      "main": [[{ "node": "Process Rubric", "type": "main", "index": 0 }]]
+    },
+    "Process Rubric": {
+      "main": [[{ "node": "Export to PDF", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "generate-rubric-002",
+  "tags": ["rubric", "education", "grading"]
+}

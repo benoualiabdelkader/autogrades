@@ -1,0 +1,519 @@
+{
+  "name": "AI-Powered Student Assignment Grading and Analytics System",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "46abfc76-7f8c-4470-a615-edd0098586c3",
+      "name": "Start - Assignment Input",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        480,
+        816
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.GROQ_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"qwen2.5-32b\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are an expert grading assistant. Analyze assignments and provide structured feedback in JSON format with keys: grade (0-100), feedback (detailed text), strengths (array of strings), improvements (array of strings).\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Grade this assignment based on {{ $json.rubricCriteria }}. Assignment text: {{ $json.assignmentText }}\"\n    }\n  ],\n  \"temperature\": 0.2,\n  \"response_format\": {\n    \"type\": \"json_object\"\n  }\n}",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "1cfeb569-204f-4fc5-8afd-28ac6c00cb47",
+      "name": "Call AI Grading API",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        1344,
+        464
+      ],
+      "onError": "continueErrorOutput"
+    },
+    {
+      "parameters": {
+        "jsCode": "const inputData = $input.item.json;\nconst groqResponse = inputData.choices?.[0]?.message?.content || inputData;\n\nlet parsedResponse;\ntry {\n  // Parse Groq API response\n  parsedResponse = typeof groqResponse === 'string' ? JSON.parse(groqResponse) : groqResponse;\n} catch (e) {\n  // Fallback parsing if JSON parsing fails\n  const text = typeof groqResponse === 'string' ? groqResponse : JSON.stringify(groqResponse);\n  parsedResponse = {\n    grade: parseInt(text.match(/grade[\"']?\\s*:\\s*(\\d+)/i)?.[1] || '0'),\n    feedback: text.match(/feedback[\"']?\\s*:\\s*[\"']([^\"']+)/i)?.[1] || 'No feedback available',\n    strengths: [],\n    improvements: []\n  };\n}\n\nreturn [{\n  json: {\n    grade: parsedResponse.grade || 0,\n    feedback: parsedResponse.feedback || 'No feedback provided',\n    strengths: Array.isArray(parsedResponse.strengths) ? parsedResponse.strengths : [],\n    improvements: Array.isArray(parsedResponse.improvements) ? parsedResponse.improvements : []\n  }\n}];"
+      },
+      "id": "a3970944-46a3-4db0-a4a9-188d505a2359",
+      "name": "Process AI Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1600,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "studentId",
+              "value": "={{ $('Normalize Student Data').item.json.studentId }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "assignmentId",
+              "value": "={{ $('Normalize Student Data').item.json.assignmentId }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "grade",
+              "value": "={{ $json.grade }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "feedback",
+              "value": "={{ $json.feedback }}",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "strengths",
+              "value": "={{ $json.strengths }}",
+              "type": "string"
+            },
+            {
+              "id": "id-6",
+              "name": "improvements",
+              "value": "={{ $json.improvements }}",
+              "type": "string"
+            },
+            {
+              "id": "id-7",
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "c289fd83-f00a-4165-a31b-c3fa1af67975",
+      "name": "Format Grading Result",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1824,
+        640
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "studentId",
+              "value": "={{ $('Normalize Student Data').item.json.studentId }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "assignmentId",
+              "value": "={{ $('Normalize Student Data').item.json.assignmentId }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "grade",
+              "value": 0,
+              "type": "number"
+            },
+            {
+              "id": "id-4",
+              "name": "feedback",
+              "value": "=AI grading failed: {{ $json.error.message }}",
+              "type": "string"
+            },
+            {
+              "id": "id-5",
+              "name": "strengths",
+              "value": "[]",
+              "type": "array"
+            },
+            {
+              "id": "id-6",
+              "name": "improvements",
+              "value": "[]",
+              "type": "array"
+            },
+            {
+              "id": "id-7",
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "id-8",
+              "name": "error",
+              "value": true,
+              "type": "boolean"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "5cb15762-d7fe-4095-aa32-6f6e29d74ace",
+      "name": "Handle API Error",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1584,
+        400
+      ]
+    },
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "student-data",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "id": "bfc331a1-4180-4768-a4ac-186c15694b5e",
+      "name": "Receive Student Data (JSON/CSV)",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        256,
+        544
+      ],
+      "webhookId": "eea6e576-1b59-4ac7-9762-c464dc4f0f0c"
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "=SELECT u.id as studentId, u.username, u.firstname, u.lastname, u.email FROM mdl_user u WHERE u.id = {{ $json.studentId || 1 }} LIMIT 10",
+        "options": {}
+      },
+      "id": "3e1c5abe-5e6c-4b87-8a19-13add697a60f",
+      "name": "Fetch from Moodle Database",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [
+        480,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "options": {
+          "includeEmptyCells": true,
+          "maxRowCount": 50
+        }
+      },
+      "id": "b53c549f-1e46-42be-93eb-3347d0f5d28c",
+      "name": "Extract CSV Data",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1.1,
+      "position": [
+        480,
+        624
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "hoursInterval": 6
+            }
+          ]
+        }
+      },
+      "id": "b4c4d837-b82d-4aa7-b0e3-fe200c337658",
+      "name": "Database Query Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.2,
+      "position": [
+        256,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "id-1",
+              "name": "studentId",
+              "value": "={{ $json.studentId || $json.student_id }}",
+              "type": "string"
+            },
+            {
+              "id": "id-2",
+              "name": "assignmentId",
+              "value": "={{ $json.assignmentId || $json.assignment_id || 'DB_' + $json.studentId }}",
+              "type": "string"
+            },
+            {
+              "id": "id-3",
+              "name": "assignmentText",
+              "value": "={{ $json.assignmentText || $json.assignment_text || $json.content || 'Assignment from ' + $json.firstname + ' ' + $json.lastname }}",
+              "type": "string"
+            },
+            {
+              "id": "id-4",
+              "name": "rubricCriteria",
+              "value": "={{ $json.rubricCriteria || $json.rubric || 'clarity, accuracy, completeness' }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "id": "2b7c7987-f85b-4e00-9e47-f031dd0b41a4",
+      "name": "Normalize Student Data",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        704,
+        544
+      ]
+    },
+    {
+      "parameters": {
+        "maxItems": 20
+      },
+      "id": "f7776b0c-a522-4cb7-af7e-718df3fc8927",
+      "name": "Limit Processing Load",
+      "type": "n8n-nodes-base.limit",
+      "typeVersion": 1,
+      "position": [
+        912,
+        272
+      ]
+    },
+    {
+      "parameters": {
+        "amount": 2
+      },
+      "id": "b8f31de8-c4bb-4429-ac2b-27946064b569",
+      "name": "Delay Between Requests",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        1152,
+        544
+      ],
+      "webhookId": "a4c73a8c-108f-4685-af88-f781f442375e"
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "={{ 'grading_results_' + $now.format('yyyy-MM-dd_HHmmss') + '.csv' }}",
+          "headerRow": true
+        }
+      },
+      "id": "bf1adc7c-c026-4af2-aa29-aa0dab438361",
+      "name": "Export to CSV",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [
+        2048,
+        304
+      ]
+    },
+    {
+      "parameters": {
+        "respondWith": "binary",
+        "options": {
+          "responseCode": 200
+        }
+      },
+      "id": "7304f3b3-bde0-4d9b-8a6c-bf991732660d",
+      "name": "Return CSV File",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.1,
+      "position": [
+        2272,
+        304
+      ]
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Call AI Grading API": {
+      "main": [
+        [
+          {
+            "node": "Process AI Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Handle API Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Start - Assignment Input": {
+      "main": [
+        [
+          {
+            "node": "Normalize Student Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Process AI Response": {
+      "main": [
+        [
+          {
+            "node": "Format Grading Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Grading Result": {
+      "main": [
+        [
+          {
+            "node": "Export to CSV",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Handle API Error": {
+      "main": [
+        []
+      ]
+    },
+    "Receive Student Data (JSON/CSV)": {
+      "main": [
+        [
+          {
+            "node": "Normalize Student Data",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Extract CSV Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Fetch from Moodle Database": {
+      "main": [
+        [
+          {
+            "node": "Normalize Student Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract CSV Data": {
+      "main": [
+        [
+          {
+            "node": "Normalize Student Data",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Database Query Trigger": {
+      "main": [
+        [
+          {
+            "node": "Fetch from Moodle Database",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Student Data": {
+      "main": [
+        [
+          {
+            "node": "Limit Processing Load",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Limit Processing Load": {
+      "main": [
+        [
+          {
+            "node": "Delay Between Requests",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Delay Between Requests": {
+      "main": [
+        [
+          {
+            "node": "Call AI Grading API",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Export to CSV": {
+      "main": [
+        [
+          {
+            "node": "Return CSV File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate",
+    "availableInMCP": false
+  },
+  "versionId": "07bed2b9-4436-4f1a-b3c1-866fd415b369",
+  "meta": {
+    "instanceId": "bbfea5703003ae7d30f3943ef1b4c99399f82085e30b9fc1fe0fb4aa1141c723"
+  },
+  "id": "fQGYJRJXxrq9gttS",
+  "tags": []
+}

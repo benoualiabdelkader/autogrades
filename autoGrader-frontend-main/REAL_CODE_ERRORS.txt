@@ -1,0 +1,53 @@
+﻿AutoGrader Verified Real Errors
+Generated: 2026-02-20
+
+1) Build-breaking syntax error
+- File: packages/webapp/src/lib/database/LocalDatabase.ts:50
+- Error: Unterminated string literal.
+
+2) Lint error (unescaped entities)
+- File: packages/webapp/src/pages/database-settings/index.tsx:203
+- Error: react/no-unescaped-entities.
+
+3) TypeScript errors (missing type)
+- File: packages/webapp/src/lib/n8n/WorkflowExecutor.ts:129
+- File: packages/webapp/src/lib/n8n/WorkflowExecutor.ts:134
+- File: packages/webapp/src/lib/n8n/WorkflowExecutor.ts:139
+- Error: TS2304 Cannot find name N8nNode.
+
+4) Critical security issue: API key leakage endpoint
+- File: packages/webapp/src/pages/api/groq.ts:13
+- File: packages/webapp/src/pages/api/openai.ts:13
+
+5) Critical security issue: arbitrary SQL execution path
+- File: packages/webapp/src/pages/api/moodle/query.ts:12
+- File: packages/webapp/src/pages/api/moodle/query.ts:31
+
+6) Security risk: no auth on sensitive DB APIs
+- File: packages/webapp/src/pages/api/moodle/connect.ts:8
+- File: packages/webapp/src/pages/api/moodle/query.ts:8
+- File: packages/webapp/src/pages/api/moodle/stats.ts:8
+- File: packages/webapp/src/pages/api/moodle/students.ts:8
+
+7) Security risk: dbpass sent in URL query params
+- File: packages/webapp/src/pages/dashboard/index.tsx:229
+- File: packages/webapp/src/pages/dashboard/index-with-workflows.tsx:281
+- File: packages/webapp/src/pages/dashboard/index-backup.tsx:227
+
+8) Security risk: DB config stored in localStorage
+- File: packages/webapp/src/pages/database-settings/index.tsx:50
+- File: packages/webapp/src/pages/dashboard/index-with-workflows.tsx:254
+- File: packages/webapp/src/pages/dashboard/index-backup.tsx:189
+
+9) Security risk: dynamic code execution
+- File: packages/webapp/src/lib/n8n/RealWorkflowExecutor.ts:427
+- Code: new Function(...)
+
+10) API compatibility issue in pages/api route style
+- File: packages/webapp/src/pages/api/analyze-json.ts:6
+- File: packages/webapp/src/pages/api/analyze-json.ts:8
+- Issue: Uses Request/NextResponse style in pages/api implementation.
+
+Validation commands used
+- npm run lint (failed)
+- npx tsc --noEmit --skipLibCheck src/lib/n8n/WorkflowExecutor.ts (failed)

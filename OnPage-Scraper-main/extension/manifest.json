@@ -1,0 +1,67 @@
+{
+  "manifest_version": 3,
+  "name": "AutoGrader Smart Scraper",
+  "version": "2.1.0",
+  "description": "استخراج ذكي للبيانات مع التحليل الدلالي ومحرك المرونة | Smart web data extraction powered by semantic analysis and resilience engine",
+  "permissions": [
+    "activeTab",
+    "storage",
+    "scripting",
+    "tabs"
+  ],
+  "host_permissions": [
+    "http://localhost:3000/*",
+    "http://localhost:5173/*",
+    "https://onpage.dev/*",
+    "<all_urls>"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "<all_urls>"
+      ],
+      "js": [
+        "resilience-engine.js",
+        "telemetry-profiler.js",
+        "semantic-analyzer.js",
+        "smart-extractor.js",
+        "autograder-integration.js",
+        "content.js"
+      ],
+      "css": [
+        "content.css"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "action": {
+    "default_popup": "enhanced-popup.html",
+    "default_title": "AutoGrader Smart Scraper",
+    "default_icon": {
+      "16": "icons/OnPage.png",
+      "32": "icons/OnPage.png",
+      "48": "icons/OnPage.png",
+      "128": "icons/OnPage.png"
+    }
+  },
+  "options_page": "reports.html",
+  "icons": {
+    "16": "icons/OnPage.png",
+    "32": "icons/OnPage.png",
+    "48": "icons/OnPage.png",
+    "128": "icons/OnPage.png"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "content.css"
+      ],
+      "matches": [
+        "<all_urls>"
+      ]
+    }
+  ]
+}

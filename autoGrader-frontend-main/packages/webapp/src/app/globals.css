@@ -1,0 +1,147 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&display=swap');
+
+:root {
+  --background: 120 10% 4%;
+  --foreground: 0 0% 98%;
+  --card: 120 10% 8%;
+  --card-foreground: 0 0% 98%;
+  --popover: 120 10% 4%;
+  --popover-foreground: 0 0% 98%;
+  --primary: 150 100% 50%;
+  --primary-foreground: 120 10% 4%;
+  --secondary: 120 4% 16%;
+  --secondary-foreground: 0 0% 98%;
+  --muted: 120 4% 16%;
+  --muted-foreground: 120 5% 65%;
+  --accent: 150 100% 50%;
+  --accent-foreground: 120 10% 4%;
+  --destructive: 0 62% 50%;
+  --destructive-foreground: 0 0% 98%;
+  --border: 120 4% 16%;
+  --input: 120 4% 16%;
+  --ring: 150 100% 50%;
+  --radius: 0.5rem;
+}
+
+* {
+  border-color: hsl(var(--border));
+}
+
+body {
+  font-family: 'Space Grotesk', sans-serif;
+  background-color: #0b0f0b;
+  color: hsl(var(--foreground));
+  font-feature-settings: "rlig" 1, "calt" 1;
+  min-height: 100vh;
+}
+
+@layer base {
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold tracking-tight;
+  }
+}
+
+.glass-panel {
+  background: rgba(22, 27, 22, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 255, 136, 0.15);
+}
+
+.glass-card {
+  background: rgba(22, 27, 22, 0.7);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(0, 255, 136, 0.15);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  background: rgba(22, 27, 22, 0.85);
+  border: 1px solid rgba(0, 255, 136, 0.3);
+  transform: translateY(-2px);
+}
+
+.neon-glow {
+  box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+}
+
+.neon-border {
+  border: 1px solid #00ff88;
+  box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+}
+
+.pulse-dot {
+  box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7);
+  animation: pulse 2s infinite;
+}
+
+@keyframes pulse {
+  0% { 
+    transform: scale(0.95); 
+    box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); 
+  }
+  70% { 
+    transform: scale(1); 
+    box-shadow: 0 0 0 10px rgba(0, 255, 136, 0); 
+  }
+  100% { 
+    transform: scale(0.95); 
+    box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); 
+  }
+}
+
+.premium-gradient {
+  background: linear-gradient(135deg, #00ff88 0%, #00cc6a 100%);
+}
+
+.premium-text-gradient {
+  background: linear-gradient(135deg, #fff 0%, #94a3b8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+/* Custom Scrollbar */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.1);
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #00ff884d;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #0b0f0b;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #00ff884d;
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #00ff88;
+}
+
+/* Animations */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.5s ease forwards;
+}

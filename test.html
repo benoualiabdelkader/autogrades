@@ -1,0 +1,60 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Test Page</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      background: #f5f5f5;
+      margin: 0;
+      padding: 40px;
+    }
+    .card {
+      max-width: 400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 10px;
+      padding: 24px;
+      box-shadow: 0 8px 20px rgba(0,0,0,0.08);
+      text-align: center;
+    }
+    button {
+      padding: 8px 16px;
+      border-radius: 6px;
+      border: none;
+      background: #2563eb;
+      color: white;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #1d4ed8;
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Test Page for Extension</h1>
+
+    <p id="intro-text">
+      This is a simple paragraph of text to test your tool or browser extension.
+    </p>
+
+    <p>
+      نص عربي للتجربة: هذه الجملة موجودة هنا فقط حتى تتأكد أن أداتك تستطيع قراءة النصوص
+      واستخراجها بشكل صحيح من صفحة HTML بسيطة.
+    </p>
+
+    <ul>
+      <li>First item for testing</li>
+      <li>Second item with <strong>bold</strong> text</li>
+      <li>Third item with a <a href="https://example.com">sample link</a></li>
+    </ul>
+
+    <button onclick="alert('Button clicked!')">
+      Click me
+    </button>
+  </div>
+</body>
+</html>

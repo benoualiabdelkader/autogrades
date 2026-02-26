@@ -1,0 +1,97 @@
+{
+  "name": "Student Analytics Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-analytics",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT u.id as student_id, CONCAT(u.firstname, ' ', u.lastname) as student_name, c.fullname as course_name, COUNT(DISTINCT l.id) as total_activities, AVG(g.finalgrade) as average_grade, MAX(l.timecreated) as last_activity FROM mdl_user u JOIN mdl_user_enrolments ue ON u.id = ue.userid JOIN mdl_enrol e ON ue.enrolid = e.id JOIN mdl_course c ON e.courseid = c.id LEFT JOIN mdl_logstore_standard_log l ON u.id = l.userid LEFT JOIN mdl_grade_grades g ON u.id = g.userid GROUP BY u.id, c.id LIMIT 20",
+        "options": {}
+      },
+      "id": "fetch-student-data",
+      "name": "Fetch Student Data",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.GROQ_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"model\": \"qwen/qwen3-32b\", \"messages\": [ { \"role\": \"system\", \"content\": \"You are a data analyst specializing in education. Analyze student performance data, identify patterns, predict outcomes, and flag at-risk students. Provide actionable insights and recommendations. Respond in English or French only. Return ONLY a JSON object with: analysis (string), risk_level (string), recommendations (string).\" }, { \"role\": \"user\", \"content\": \"Analyze this student: {{ $json.student_name }} in course {{ $json.course_name }}. Activities: {{ $json.total_activities }}. Average Grade: {{ $json.average_grade }}. Last Activity: {{ $json.last_activity }}.\" } ], \"temperature\": 0.2, \"response_format\": { \"type\": \"json_object\" } }",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ai-analyze-student",
+      "name": "AI Analyze Student",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.item.json.choices?.[0]?.message?.content;\nlet analysis;\ntry {\n  analysis = JSON.parse(response);\n} catch (e) {\n  analysis = { risk_level: 'unknown', recommendations: [] };\n}\nreturn [{ json: { student_id: $('Fetch Student Data').item.json.student_id, student_name: $('Fetch Student Data').item.json.student_name, analysis } }];"
+      },
+      "id": "process-analysis",
+      "name": "Process Analysis",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "={{ 'student_analytics_' + $now.format('yyyy-MM-dd') + '.pdf' }}"
+        }
+      },
+      "id": "export-pdf",
+      "name": "Export to PDF",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Fetch Student Data", "type": "main", "index": 0 }]]
+    },
+    "Fetch Student Data": {
+      "main": [[{ "node": "AI Analyze Student", "type": "main", "index": 0 }]]
+    },
+    "AI Analyze Student": {
+      "main": [[{ "node": "Process Analysis", "type": "main", "index": 0 }]]
+    },
+    "Process Analysis": {
+      "main": [[{ "node": "Export to PDF", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "student-analytics-003",
+  "tags": ["analytics", "education", "at-risk"]
+}

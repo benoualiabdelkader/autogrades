@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+
+<html class="dark" lang="en"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>AI Moodle Analytics Dashboard</title>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+        tailwind.config = {
+            darkMode: "class",
+            theme: {
+                extend: {
+                    colors: {
+                        "primary": "#00ff88",
+                        "background-light": "#f5f8f7",
+                        "background-dark": "#0b0f0b",
+                        "card-dark": "#161b16",
+                        "border-neon": "#00ff884d",
+                    },
+                    fontFamily: {
+                        "display": ["Space Grotesk", "sans-serif"]
+                    },
+                    borderRadius: {
+                        "DEFAULT": "0.25rem",
+                        "lg": "0.5rem",
+                        "xl": "0.75rem",
+                        "full": "9999px"
+                    },
+                },
+            },
+        }
+    </script>
+<style>
+        body {
+            font-family: 'Space Grotesk', sans-serif;
+            background-color: #0b0f0b;
+        }
+        .glass-panel {
+            background: rgba(22, 27, 22, 0.7);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(0, 255, 136, 0.15);
+        }
+        .neon-glow {
+            box-shadow: 0 0 15px rgba(0, 255, 136, 0.2);
+        }
+        .neon-border {
+            border: 1px solid #00ff88;
+            box-shadow: 0 0 8px rgba(0, 255, 136, 0.3);
+        }
+        .pulse-dot {
+            box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7);
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0.7); }
+            70% { transform: scale(1); box-shadow: 0 0 0 10px rgba(0, 255, 136, 0); }
+            100% { transform: scale(0.95); box-shadow: 0 0 0 0 rgba(0, 255, 136, 0); }
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+            width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.1);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+            background: #00ff884d;
+            border-radius: 10px;
+        }
+    </style>
+</head>
+<body class="text-slate-100 antialiased overflow-hidden">
+<div class="flex h-screen w-full">
+<!-- Main Content Area (75%) -->
+<main class="w-3/4 h-full overflow-y-auto custom-scrollbar bg-background-dark p-8 border-r border-primary/10">
+<!-- Header -->
+<header class="flex items-center justify-between mb-8">
+<div>
+<h1 class="text-3xl font-bold tracking-tight text-slate-100 flex items-center gap-3">
+                        AI Moodle Analytics Dashboard
+                        <span class="flex items-center gap-2 text-xs font-medium bg-primary/10 text-primary px-3 py-1 rounded-full border border-primary/20">
+<span class="size-2 rounded-full bg-primary pulse-dot"></span>
+                            Live Data Sync
+                        </span>
+</h1>
+<p class="text-slate-400 mt-1 flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">api</span>
+                        Connected to Moodle API • <span class="text-primary/80 font-mono">192.168.1.104</span>
+</p>
+</div>
+<div class="flex gap-4">
+<button class="bg-primary/5 hover:bg-primary/10 text-primary border border-primary/30 px-4 py-2 rounded-lg font-medium transition-all flex items-center gap-2">
+<span class="material-symbols-outlined text-lg">download</span>
+                        Export Report
+                    </button>
+<div class="size-10 rounded-full bg-primary/10 border border-primary/20 overflow-hidden">
+<img class="w-full h-full object-cover" data-alt="User avatar for university administrator" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA28pUVTRSCLCy_C3L2oQHoIndZWq3KDN83ESydWTJ2riGC3srR8izIYCuHod33_xodnWJdYN9zwNfhKAM9TbTwIOeMvy3TBG6CvvUPDxhX9l_avKnTo5ILf8MYi7vLkwDJ1keqbMeQHCqis9WgDwdhJ5nIzGE6wj0-q37Z3kReSjl2HXGE2HEcETdlb2Nyk7eNPNaR0Zjq2fSsw_xzxT6klmBvf27tr0vlGfTfK4WK7OJqV93RBKqo2_3o3FACIwt9uvxKe8sI2_j8"/>
+</div>
+</div>
+</header>
+<!-- Insight Cards Grid -->
+<div class="grid grid-cols-4 gap-6 mb-8">
+<div class="glass-panel p-5 rounded-xl border-l-4 border-l-red-500/50">
+<p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Students at Risk</p>
+<h3 class="text-3xl font-bold text-slate-100 mt-1">12</h3>
+<p class="text-red-400 text-xs mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">trending_up</span>
+                        +2 since last login
+                    </p>
+</div>
+<div class="glass-panel p-5 rounded-xl border-l-4 border-l-primary/50">
+<p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Engagement Spikes</p>
+<h3 class="text-3xl font-bold text-slate-100 mt-1">88%</h3>
+<p class="text-primary text-xs mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">bolt</span>
+                        Peak during 2PM - 4PM
+                    </p>
+</div>
+<div class="glass-panel p-5 rounded-xl border-l-4 border-l-blue-500/50">
+<p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Course Completion</p>
+<h3 class="text-3xl font-bold text-slate-100 mt-1">64.2%</h3>
+<p class="text-blue-400 text-xs mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">check_circle</span>
+                        On track for semester
+                    </p>
+</div>
+<div class="glass-panel p-5 rounded-xl border-l-4 border-l-purple-500/50">
+<p class="text-slate-400 text-xs uppercase tracking-wider font-semibold">Active Sessions</p>
+<h3 class="text-3xl font-bold text-slate-100 mt-1">450</h3>
+<p class="text-purple-400 text-xs mt-2 flex items-center gap-1">
+<span class="material-symbols-outlined text-sm">group</span>
+                        Real-time users
+                    </p>
+</div>
+</div>
+<!-- Charts Grid -->
+<div class="grid grid-cols-2 gap-6 mb-8">
+<!-- Grade Trends Line Chart -->
+<div class="glass-panel p-6 rounded-xl relative overflow-hidden">
+<div class="flex items-center justify-between mb-6">
+<h4 class="text-lg font-semibold text-slate-100">Grade Progression Trends</h4>
+<span class="material-symbols-outlined text-slate-400 cursor-pointer hover:text-primary transition-colors">more_vert</span>
+</div>
+<div class="h-64 flex items-end gap-2 relative">
+<!-- Abstract Line Chart Visualization -->
+<svg class="w-full h-full" viewbox="0 0 400 150">
+<path class="neon-glow" d="M0 120 Q 50 100, 100 110 T 200 60 T 300 80 T 400 40" fill="none" stroke="#00ff88" stroke-width="3"></path>
+<path d="M0 120 Q 50 100, 100 110 T 200 60 T 300 80 T 400 40 L 400 150 L 0 150 Z" fill="url(#gradient)"></path>
+<defs>
+<lineargradient id="gradient" x1="0%" x2="0%" y1="0%" y2="100%">
+<stop offset="0%" style="stop-color:rgba(0, 255, 136, 0.2)"></stop>
+<stop offset="100%" style="stop-color:rgba(0, 255, 136, 0)"></stop>
+</lineargradient>
+</defs>
+</svg>
+<div class="absolute inset-0 flex flex-col justify-between py-2 text-[10px] text-slate-500 font-mono pointer-events-none">
+<span>100%</span><span>75%</span><span>50%</span><span>25%</span><span>0%</span>
+</div>
+</div>
+</div>
+<!-- Activity Heatmap -->
+<div class="glass-panel p-6 rounded-xl">
+<div class="flex items-center justify-between mb-6">
+<h4 class="text-lg font-semibold text-slate-100">Weekly Activity Heatmap</h4>
+<span class="material-symbols-outlined text-slate-400 cursor-pointer">info</span>
+</div>
+<div class="grid grid-cols-7 gap-2">
+<!-- Simulated heatmap grid -->
+<div class="space-y-2">
+<div class="h-8 bg-primary/10 rounded"></div><div class="h-8 bg-primary/20 rounded"></div><div class="h-8 bg-primary/40 rounded"></div><div class="h-8 bg-primary/10 rounded"></div><div class="h-8 bg-primary/60 rounded"></div><p class="text-[10px] text-center text-slate-500">MON</p>
+</div>
+<div class="space-y-2">
+<div class="h-8 bg-primary/40 rounded"></div><div class="h-8 bg-primary/60 rounded"></div><div class="h-8 bg-primary/80 rounded"></div><div class="h-8 bg-primary/40 rounded"></div><div class="h-8 bg-primary/90 rounded neon-glow"></div><p class="text-[10px] text-center text-slate-500">TUE</p>
+</div>
+<div class="space-y-2">
+<div class="h-8 bg-primary/20 rounded"></div><div class="h-8 bg-primary/30 rounded"></div><div class="h-8 bg-primary/10 rounded"></div><div class="h-8 bg-primary/20 rounded"></div><div class="h-8 bg-primary/40 rounded"></div><p class="text-[10px] text-center text-slate-500">WED</p>
+</div>
+<div class="space-y-2">
+<div class="h-8 bg-primary/50 rounded"></div><div class="h-8 bg-primary/20 rounded"></div><div class="h-8 bg-primary/70 rounded"></div><div class="h-8 bg-primary/10 rounded"></div><div class="h-8 bg-primary/80 rounded"></div><p class="text-[10px] text-center text-slate-500">THU</p>
+</div>
+<div class="space-y-2">
+<div class="h-8 bg-primary/90 rounded neon-glow"></div><div class="h-8 bg-primary/80 rounded"></div><div class="h-8 bg-primary/100 rounded neon-glow"></div><div class="h-8 bg-primary/90 rounded neon-glow"></div><div class="h-8 bg-primary/80 rounded"></div><p class="text-[10px] text-center text-slate-500">FRI</p>
+</div>
+<div class="space-y-2">
+<div class="h-8 bg-primary/10 rounded"></div><div class="h-8 bg-primary/05 rounded"></div><div class="h-8 bg-primary/10 rounded"></div><div class="h-8 bg-primary/05 rounded"></div><div class="h-8 bg-primary/10 rounded"></div><p class="text-[10px] text-center text-slate-500">SAT</p>
+</div>
+<div class="space-y-2">
+<div class="h-8 bg-primary/05 rounded"></div><div class="h-8 bg-primary/05 rounded"></div><div class="h-8 bg-primary/05 rounded"></div><div class="h-8 bg-primary/05 rounded"></div><div class="h-8 bg-primary/05 rounded"></div><p class="text-[10px] text-center text-slate-500">SUN</p>
+</div>
+</div>
+</div>
+</div>
+<!-- Student Data Table -->
+<div class="glass-panel rounded-xl overflow-hidden mb-8">
+<div class="p-6 border-b border-primary/10 flex justify-between items-center">
+<h4 class="text-lg font-semibold text-slate-100">High-Risk Student Watchlist</h4>
+<div class="flex gap-2">
+<input class="bg-background-dark/50 border border-primary/20 rounded-lg px-3 py-1 text-sm focus:ring-1 focus:ring-primary outline-none" placeholder="Filter students..." type="text"/>
+<button class="bg-primary/10 hover:bg-primary/20 p-2 rounded-lg transition-colors">
+<span class="material-symbols-outlined text-sm">filter_list</span>
+</button>
+</div>
+</div>
+<table class="w-full text-left">
+<thead class="bg-primary/5 text-slate-400 text-xs uppercase tracking-wider">
+<tr>
+<th class="px-6 py-4 font-semibold">Student Name</th>
+<th class="px-6 py-4 font-semibold">Course</th>
+<th class="px-6 py-4 font-semibold">Engagement</th>
+<th class="px-6 py-4 font-semibold">Predicted Grade</th>
+<th class="px-6 py-4 font-semibold">Status</th>
+</tr>
+</thead>
+<tbody class="text-sm divide-y divide-primary/5">
+<tr class="hover:bg-primary/5 transition-colors cursor-pointer group">
+<td class="px-6 py-4 font-medium flex items-center gap-3">
+<div class="size-8 rounded-full bg-slate-800 flex items-center justify-center border border-primary/10">JD</div>
+                                Jerome Duncan
+                            </td>
+<td class="px-6 py-4 text-slate-300">Advanced AI &amp; Ethics</td>
+<td class="px-6 py-4">
+<div class="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+<div class="w-[24%] h-full bg-red-500"></div>
+</div>
+</td>
+<td class="px-6 py-4 text-red-400 font-mono">D- (Risk)</td>
+<td class="px-6 py-4"><span class="px-2 py-1 rounded bg-red-500/10 text-red-400 text-[10px] font-bold">CRITICAL</span></td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors cursor-pointer group">
+<td class="px-6 py-4 font-medium flex items-center gap-3">
+<div class="size-8 rounded-full bg-slate-800 flex items-center justify-center border border-primary/10">SW</div>
+                                Sarah Weaver
+                            </td>
+<td class="px-6 py-4 text-slate-300">Quantum Computing</td>
+<td class="px-6 py-4">
+<div class="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+<div class="w-[38%] h-full bg-orange-500"></div>
+</div>
+</td>
+<td class="px-6 py-4 text-orange-400 font-mono">C</td>
+<td class="px-6 py-4"><span class="px-2 py-1 rounded bg-orange-500/10 text-orange-400 text-[10px] font-bold">WARNING</span></td>
+</tr>
+<tr class="hover:bg-primary/5 transition-colors cursor-pointer group">
+<td class="px-6 py-4 font-medium flex items-center gap-3">
+<div class="size-8 rounded-full bg-slate-800 flex items-center justify-center border border-primary/10">LM</div>
+                                Liam Martinez
+                            </td>
+<td class="px-6 py-4 text-slate-300">Cybersecurity Law</td>
+<td class="px-6 py-4">
+<div class="w-24 h-1.5 bg-slate-800 rounded-full overflow-hidden">
+<div class="w-[32%] h-full bg-red-500"></div>
+</div>
+</td>
+<td class="px-6 py-4 text-red-400 font-mono">F</td>
+<td class="px-6 py-4"><span class="px-2 py-1 rounded bg-red-500/10 text-red-400 text-[10px] font-bold">CRITICAL</span></td>
+</tr>
+</tbody>
+</table>
+</div>
+</main>
+<!-- Fixed AI Chatbot Panel (25%) -->
+<aside class="w-1/4 h-full glass-panel flex flex-col relative z-10 border-l border-primary/30">
+<!-- Chat Header -->
+<div class="p-6 border-b border-primary/10">
+<div class="flex items-center justify-between mb-4">
+<h2 class="text-xl font-bold text-primary flex items-center gap-2">
+<span class="material-symbols-outlined">psychology</span>
+                        AI Intelligence
+                    </h2>
+<div class="flex gap-2">
+<button class="text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined">settings</span>
+</button>
+</div>
+</div>
+<div class="space-y-3">
+<div class="flex flex-col gap-1">
+<label class="text-[10px] uppercase text-slate-500 font-bold tracking-widest">Model Selection</label>
+<select class="bg-background-dark/80 border border-primary/20 text-xs rounded-lg p-2 text-slate-200 outline-none focus:border-primary transition-all">
+<option>GPT-4o (Reasoning)</option>
+<option>Claude 3.5 Sonnet</option>
+<option>Custom Moodle-v2</option>
+</select>
+</div>
+<div class="flex flex-col gap-1">
+<label class="text-[10px] uppercase text-slate-500 font-bold tracking-widest">Analysis Mode</label>
+<div class="flex bg-background-dark/80 p-1 rounded-lg border border-primary/10">
+<button class="flex-1 text-[10px] font-bold py-1 bg-primary text-background-dark rounded shadow-sm">PREDICTIVE</button>
+<button class="flex-1 text-[10px] font-bold py-1 text-slate-400">DESCRIPTIVE</button>
+</div>
+</div>
+</div>
+</div>
+<!-- Chat History -->
+<div class="flex-1 overflow-y-auto p-6 space-y-4 custom-scrollbar">
+<!-- AI Message -->
+<div class="flex flex-col gap-1 items-start max-w-[90%]">
+<div class="glass-panel border-l-2 border-l-primary p-3 rounded-lg rounded-tl-none">
+<p class="text-xs leading-relaxed">System initialized. I have analyzed the latest student data. Enrollment is stable, but engagement in <span class="text-primary">CS104</span> has dropped by 18%.</p>
+</div>
+<span class="text-[9px] text-slate-600 font-mono">AI • 10:24 AM</span>
+</div>
+<!-- User Message -->
+<div class="flex flex-col gap-1 items-end ml-auto max-w-[90%]">
+<div class="bg-slate-800/80 border border-slate-700 p-3 rounded-lg rounded-tr-none">
+<p class="text-xs leading-relaxed text-slate-200">Why is engagement dropping in Course CS104?</p>
+</div>
+<span class="text-[9px] text-slate-600 font-mono">ADMIN • 10:25 AM</span>
+</div>
+<!-- AI Message -->
+<div class="flex flex-col gap-1 items-start max-w-[90%]">
+<div class="glass-panel border-l-2 border-l-primary p-3 rounded-lg rounded-tl-none">
+<p class="text-xs leading-relaxed">
+                            Based on event logs, students are struggling with <span class="text-primary font-bold">Module 4: Data Structures</span>. 
+                            Avg time spent on the quiz is only 4 minutes vs 12 minutes average. They are likely skipping content.
+                        </p>
+</div>
+<span class="text-[9px] text-slate-600 font-mono">AI • 10:25 AM</span>
+</div>
+<!-- AI Thinking Placeholder -->
+<div class="flex items-center gap-2 px-3 py-2 bg-primary/5 rounded-full w-fit">
+<div class="flex gap-1">
+<div class="size-1.5 bg-primary rounded-full animate-bounce"></div>
+<div class="size-1.5 bg-primary rounded-full animate-bounce [animation-delay:-0.3s]"></div>
+<div class="size-1.5 bg-primary rounded-full animate-bounce [animation-delay:-0.5s]"></div>
+</div>
+<span class="text-[10px] text-primary/70 font-bold uppercase tracking-widest italic">Analyzing Moodle Logs...</span>
+</div>
+</div>
+<!-- Chat Input -->
+<div class="p-6 bg-background-dark/80 backdrop-blur-md">
+<div class="relative">
+<textarea class="w-full bg-slate-900 border border-primary/30 rounded-xl px-4 py-3 text-sm pr-12 focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all resize-none h-24 custom-scrollbar" placeholder="Ask about student performance..."></textarea>
+<button class="absolute bottom-3 right-3 size-8 bg-primary text-background-dark rounded-lg flex items-center justify-center neon-glow hover:scale-105 active:scale-95 transition-all">
+<span class="material-symbols-outlined text-lg font-bold">send</span>
+</button>
+</div>
+<div class="mt-3 flex gap-2 overflow-x-auto pb-2 custom-scrollbar no-scrollbar">
+<button class="whitespace-nowrap bg-slate-800/50 border border-slate-700 hover:border-primary/50 text-[10px] px-3 py-1.5 rounded-full text-slate-400 transition-all">Predict Finals</button>
+<button class="whitespace-nowrap bg-slate-800/50 border border-slate-700 hover:border-primary/50 text-[10px] px-3 py-1.5 rounded-full text-slate-400 transition-all">Summarize Risks</button>
+<button class="whitespace-nowrap bg-slate-800/50 border border-slate-700 hover:border-primary/50 text-[10px] px-3 py-1.5 rounded-full text-slate-400 transition-all">Resource Usage</button>
+</div>
+</div>
+</aside>
+</div>
+</body></html>

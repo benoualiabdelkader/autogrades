@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Advanced Literature Exam Results - Cohort 2026</title>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --secondary: #34495e;
+            --accent: #3498db;
+            --bg: #ecf0f1;
+            --table-border: #bdc3c7;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background-color: var(--bg);
+            color: var(--primary);
+            line-height: 1.6;
+            margin: 0;
+            padding: 2rem;
+        }
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            padding: 2rem;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        header {
+            border-bottom: 2px solid var(--accent);
+            margin-bottom: 2rem;
+            padding-bottom: 1rem;
+        }
+        h1 {
+            color: var(--primary);
+            margin: 0;
+            font-size: 2.2rem;
+        }
+        .subtitle {
+            color: var(--secondary);
+            font-style: italic;
+            margin-top: 0.5rem;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-bottom: 2rem;
+            background-color: white;
+            table-layout: fixed;
+        }
+        th, td {
+            border: 1px solid var(--table-border);
+            padding: 1rem;
+            text-align: left;
+            vertical-align: top;
+        }
+        th {
+            background-color: var(--primary);
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        th:nth-child(1) { width: 50px; }
+        th:nth-child(2) { width: 120px; }
+        th:nth-child(3) { width: 80px; }
+        th:nth-child(4) { width: 180px; }
+        th:nth-child(5) { width: 180px; }
+        th:nth-child(6) { width: 180px; }
+        th:nth-child(7) { width: 180px; }
+        th:nth-child(8) { width: 180px; }
+        
+        tr:nth-child(even) {
+            background-color: #f8f9fa;
+        }
+        tr:hover {
+            background-color: #e8f4f8;
+            transition: background-color 0.2s ease;
+        }
+        .student-id {
+            font-family: monospace;
+            color: var(--accent);
+            font-weight: bold;
+        }
+        .student-name {
+            font-weight: 600;
+        }
+        .grade {
+            text-align: center;
+            font-weight: bold;
+            font-size: 1.1rem;
+        }
+        .grade.excellent { color: #27ae60; }
+        .grade.good { color: #2980b9; }
+        .grade.average { color: #f39c12; }
+        
+        .answer-block {
+            font-size: 0.9rem;
+            color: #555;
+        }
+        .question-meta {
+            font-size: 0.8rem;
+            color: #7f8c8d;
+            border-bottom: 1px dotted #ccc;
+            margin-bottom: 0.5rem;
+            display: block;
+        }
+        footer {
+            text-align: center;
+            margin-top: 3rem;
+            color: var(--secondary);
+            font-size: 0.9rem;
+        }
+        .stats-panel {
+            display: flex;
+            gap: 1rem;
+            margin-bottom: 2rem;
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 6px;
+            border-left: 4px solid var(--accent);
+        }
+        .stat-item {
+            flex: 1;
+        }
+        .stat-label {
+            display: block;
+            font-size: 0.8rem;
+            text-transform: uppercase;
+            color: #7f8c8d;
+        }
+        .stat-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            color: var(--primary);
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1 id="page-title">Advanced Literature Exam Results</h1>
+            <p class="subtitle" data-course="LIT-401">Course: LIT-401 | Term: Fall 2026 | Instructor: Dr. E. Thompson</p>
+        </header>
+
+        <div class="stats-panel" id="exam-statistics">
+            <div class="stat-item">
+                <span class="stat-label">Total Students</span>
+                <span class="stat-value">5</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Average Grade</span>
+                <span class="stat-value">87.4%</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Highest Score</span>
+                <span class="stat-value">96%</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-label">Status</span>
+                <span class="stat-value" style="color: #27ae60;">Graded</span>
+            </div>
+        </div>
+
+        <div class="table-container">
+            <table id="results-table" aria-label="Student Exam Results Database">
+                <thead>
+                    <tr>
+                        <th scope="col">ID</th>
+                        <th scope="col">Student Name</th>
+                        <th scope="col">Final Grade</th>
+                        <th scope="col">Q1: Character Motif</th>
+                        <th scope="col">Q2: Historical Context</th>
+                        <th scope="col">Q3: Narrative Structure</th>
+                        <th scope="col">Q4: Thematic Resolution</th>
+                        <th scope="col">Q5: Author's Intent</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr data-student-row="STU-001">
+                        <td class="student-id">S-8472</td>
+                        <td class="student-name">Sarah Jenkins</td>
+                        <td class="grade excellent" data-score="96">96%</td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q1 - 20/20 pts</span>
+                                The motif of the glass menagerie perfectly encapsulates Laura's fragility and her detachment from reality. Like the glass animals, she is beautiful yet overly delicate, thriving only in a world of illusion where the harshness of the real world cannot shatter her.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q2 - 18/20 pts</span>
+                                The novel reflects the immense disillusionment of the post-WWI era. The 'Lost Generation' is depicted through characters who indulge in excessive materialism to mask their existential void, highlighting the moral decay of the 1920s American Dream.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q3 - 20/20 pts</span>
+                                The non-linear narrative creates a fragmented sense of time, forcing the reader to piece together the protagonist's trauma much like regaining lost memories. This mirrors the psychological state of the character, making form reflect content perfectly.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q4 - 19/20 pts</span>
+                                The resolution is purposely ambiguous. By not providing a clean moral ending, the author suggests that the societal issues addressed cannot be neatly solved. It leaves a lingering discomfort that forces the reader to confront these realities off the page.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q5 - 19/20 pts</span>
+                                The author intended to subvert the traditional hero's journey. Instead of returning transformed for the better, the protagonist returns deeply scarred, serving as a critique of romanticized narratives of conflict and conquest.
+                            </div>
+                        </td>
+                    </tr>
+                    
+                    <tr data-student-row="STU-002">
+                        <td class="student-id">S-3914</td>
+                        <td class="student-name">David Chen</td>
+                        <td class="grade good" data-score="84">84%</td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q1 - 16/20 pts</span>
+                                The clock motif shows how time is running out for the main character. It keeps ticking throughout the story, reminding everyone that they cannot escape aging or death, which adds suspense to the plot.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q2 - 17/20 pts</span>
+                                Written during the Great Depression, the story shows the economic hardships people faced. The dusty setting and lack of resources directly mirror the historical Dust Bowl, affecting character motivations and despair.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q3 - 18/20 pts</span>
+                                The first-person unreliable narrator makes the reader question everything. Because we only see things from his biased point of view, we have to read between the lines to figure out what actually happened versus what he imagined.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q4 - 15/20 pts</span>
+                                The story ends with the protagonist accepting his fate. While it's sad, it resolves the theme of destiny versus free will, showing that ultimately, he could not change what was meant to happen to him.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q5 - 18/20 pts</span>
+                                The intent was to show the dangers of industrialization. By contrasting the peaceful descriptions of nature with the ugly, noisy factories, the author clearly makes a statement about environmental destruction.
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr data-student-row="STU-003">
+                        <td class="student-id">S-5521</td>
+                        <td class="student-name">Maya Patel</td>
+                        <td class="grade excellent" data-score="92">92%</td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q1 - 19/20 pts</span>
+                                The recurring appearance of water acts as a dual motif of purification and drowning. For the protagonist, crossing the river signifies a baptismal rebirth, while for the antagonist, water constantly threatens to overwhelm and consume him due to his guilt.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q2 - 19/20 pts</span>
+                                The backdrop of the Cold War instills a pervasive sense of paranoia throughout the text. The constant surveillance described in the dystopia acts as an overt metaphor for McCarthyism and the intense fear of 'the other' that dominated the 1950s.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q3 - 16/20 pts</span>
+                                An epistolary structure is used to provide intimacy. Reading the letters makes us feel like we are intruding on private thoughts, though it limits our understanding of events that aren't directly observed by the letter writers.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q4 - 18/20 pts</span>
+                                The cyclical resolution reinforces the theme of generational trauma. The text ends almost exactly how it began, suggesting that the characters are trapped in repeating the mistakes of their ancestors unless a radical break occurs.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q5 - 20/20 pts</span>
+                                The author intended to give voice to the marginalized. By centering the narrative on the historically silenced servant class, the author shifts the perspective of the grand historical events from the victors to the laborers who suffered through them.
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr data-student-row="STU-004">
+                        <td class="student-id">S-1108</td>
+                        <td class="student-name">James Wilson</td>
+                        <td class="grade average" data-score="76">76%</td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q1 - 14/20 pts</span>
+                                The color red is used a lot. It usually means anger or danger. Every time the bad guy appears, he is wearing something red, so the author uses it to warn the reader that something bad is going to happen soon.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q2 - 15/20 pts</span>
+                                The story reflects the Victorian era because people are very strict about rules and manners. The characters care a lot about their reputation in society and getting married to someone with money, which was important back then.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q3 - 14/20 pts</span>
+                                The story uses a third-person omniscient narrator. This is helpful because we know what every single character is thinking all the time, so there are no secrets from the reader, making the plot easy to follow.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q4 - 17/20 pts</span>
+                                The thematic resolution happens when they forgive each other. It shows that love and forgiveness are stronger than hate. The families stopping their feud proves the theme that holding grudges only destroys both sides.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q5 - 16/20 pts</span>
+                                I think the author wanted to entertain people while also teaching a moral lesson. The story is exciting, but it clearly shows that lying gets you in trouble in the end, which is a classic lesson for young adults.
+                            </div>
+                        </td>
+                    </tr>
+
+                    <tr data-student-row="STU-005">
+                        <td class="student-id">S-9934</td>
+                        <td class="student-name">Elena Rodriguez</td>
+                        <td class="grade good" data-score="89">89%</td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q1 - 18/20 pts</span>
+                                The mirror motif symbolizes deep introspection and the fractured identity of the self. Each time she looks into a different mirror, she sees a different version of herself societal expectations versus her true desires reflecting the duality of her character.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q2 - 16/20 pts</span>
+                                The narrative is heavily influenced by the Civil Rights Movement. The struggles for spatial and social mobility by the characters serve as an allegory for the broader systemic hurdles faced by minorities seeking equality during that turbulent decade.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q3 - 19/20 pts</span>
+                                The use of shifting perspectives between the three siblings allows for a multifaceted view of the same childhood event. This structure emphasizes the subjectivity of memory and how truth is entirely dependent on the observer.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q4 - 18/20 pts</span>
+                                The theme of isolation is resolved through communal action. The protagonist realizes that extreme individualism led to her downfall, and only by integrating into the community and asking for help does she find redemption.
+                            </div>
+                        </td>
+                        <td>
+                            <div class="answer-block">
+                                <span class="question-meta">Q5 - 18/20 pts</span>
+                                The author's intent was to challenge patriarchal norms. By creating female characters who actively resist traditional domestic roles and instead seek intellectual fulfillment, the author subtly argues for female bodily and mental autonomy.
+                            </div>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <footer>
+            <p>Generated by ExamSystem Pro v4.2 | Confidential Data - Do Not Distribute</p>
+        </footer>
+    </div>
+</body>
+</html>

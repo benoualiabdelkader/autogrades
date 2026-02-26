@@ -1,0 +1,98 @@
+{
+  "name": "Grade Assignments Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-grading",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT u.id as student_id, CONCAT(u.firstname, ' ', u.lastname) as student_name, a.name as assignment_name, s.id as submission_id, FROM_UNIXTIME(s.timemodified) as submission_date, s.status FROM mdl_user u JOIN mdl_assign_submission s ON u.id = s.userid JOIN mdl_assign a ON s.assignment = a.id ORDER BY s.timemodified DESC LIMIT 20",
+        "options": {}
+      },
+      "id": "fetch-submissions",
+      "name": "Fetch Submissions",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.GROQ_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"model\": \"qwen/qwen3-32b\", \"messages\": [ { \"role\": \"system\", \"content\": \"You are an expert grading assistant. Analyze student assignments and provide grades with feedback. Respond in English or French only. Return ONLY a JSON object with: grade (number 0-100), feedback_text (string), strengths (string), improvements (string).\" }, { \"role\": \"user\", \"content\": \"Grade assignment for student: {{ $json.student_name }}. Assignment: {{ $json.assignment_name }}. Submission ID: {{ $json.submission_id }}. Status: {{ $json.status }}.\" } ], \"temperature\": 0.3, \"response_format\": { \"type\": \"json_object\" } }",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ai-grade",
+      "name": "AI Grade Assignment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.item.json.choices?.[0]?.message?.content; let grading; try { grading = JSON.parse(response); } catch (e) { grading = { grade: 75, feedback_text: 'Good work!', strengths: 'N/A', improvements: 'N/A' }; } return [{ json: { student_id: $('Fetch Submissions').item.json.student_id, student_name: $('Fetch Submissions').item.json.student_name, assignment_name: $('Fetch Submissions').item.json.assignment_name, grade: grading.grade, feedback_text: grading.feedback_text, strengths: grading.strengths, improvements: grading.improvements } }];"
+      },
+      "id": "process-grade",
+      "name": "Process Grade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "={{ 'grades_' + $now.format('yyyy-MM-dd_HHmmss') + '.csv' }}",
+          "headerRow": true
+        }
+      },
+      "id": "export-csv",
+      "name": "Export to CSV",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Fetch Submissions", "type": "main", "index": 0 }]]
+    },
+    "Fetch Submissions": {
+      "main": [[{ "node": "AI Grade Assignment", "type": "main", "index": 0 }]]
+    },
+    "AI Grade Assignment": {
+      "main": [[{ "node": "Process Grade", "type": "main", "index": 0 }]]
+    },
+    "Process Grade": {
+      "main": [[{ "node": "Export to CSV", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "grade-assignments-001",
+  "tags": ["grading", "education", "assignments"]
+}

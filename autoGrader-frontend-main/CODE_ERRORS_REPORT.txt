@@ -1,0 +1,95 @@
+﻿AutoGrader Code Errors and Issues Report
+Generated: 2026-02-20
+
+[CRITICAL] 1) API key exposure endpoint
+- File: packages/webapp/src/pages/api/groq.ts:13
+- Issue: Returns GROQ_API_KEY directly to any GET caller.
+
+[CRITICAL] 2) API key exposure endpoint
+- File: packages/webapp/src/pages/api/openai.ts:13
+- Issue: Returns OPENAI_API_KEY directly to any GET caller.
+
+[CRITICAL] 3) Arbitrary SQL execution from client input
+- File: packages/webapp/src/pages/api/moodle/query.ts:12
+- File: packages/webapp/src/pages/api/moodle/query.ts:31
+- Issue: Receives DB credentials and raw SQL from request body, then executes query without authorization or allow-list.
+
+[CRITICAL] 4) Missing authentication/authorization on sensitive APIs
+- File: packages/webapp/src/pages/api/moodle/connect.ts:8
+- File: packages/webapp/src/pages/api/moodle/query.ts:8
+- File: packages/webapp/src/pages/api/moodle/stats.ts:8
+- File: packages/webapp/src/pages/api/moodle/students.ts:8
+- Issue: Endpoints only validate HTTP method; no auth, no role checks, no rate limits.
+
+[CRITICAL] 5) Build-breaking syntax error
+- File: packages/webapp/src/lib/database/LocalDatabase.ts:50
+- Issue: Unterminated string literal / truncated source file.
+
+[HIGH] 6) Sensitive DB credentials stored in browser localStorage
+- File: packages/webapp/src/pages/database-settings/index.tsx:50
+- File: packages/webapp/src/pages/dashboard/index-with-workflows.tsx:254
+- File: packages/webapp/src/pages/dashboard/index-backup.tsx:189
+- Issue: dbpass and DB config persisted client-side.
+
+[HIGH] 7) Sensitive DB password sent in URL query string
+- File: packages/webapp/src/pages/dashboard/index.tsx:229
+- File: packages/webapp/src/pages/dashboard/index-with-workflows.tsx:281
+- File: packages/webapp/src/pages/dashboard/index-with-workflows.tsx:293
+- File: packages/webapp/src/pages/dashboard/index-backup.tsx:227
+- File: packages/webapp/src/pages/dashboard/index-backup.tsx:240
+- Issue: dbpass included in URL params (logs/history leakage risk).
+
+[HIGH] 8) Browser-side API key usage for LLM calls
+- File: packages/webapp/src/pages/smart-grader/index.tsx:173
+- File: packages/webapp/src/lib/chatbot/MessageHandler.tsx:42
+- Issue: Uses dangerouslyAllowBrowser: true with secret key in frontend runtime.
+
+[HIGH] 9) SQL identifier interpolation without strict validation
+- File: packages/webapp/src/pages/api/moodle/connect.ts:36
+- File: packages/webapp/src/pages/api/moodle/stats.ts:35
+- File: packages/webapp/src/pages/api/moodle/students.ts:46
+- Issue: Table prefix interpolated into SQL without strict allow-list regex.
+
+[HIGH] 10) Dynamic code execution risk
+- File: packages/webapp/src/lib/n8n/RealWorkflowExecutor.ts:427
+- Issue: Executes workflow code via new Function(...), which can run arbitrary code paths.
+
+[HIGH] 11) Hardcoded DB credentials in runtime query executor path
+- File: packages/webapp/src/lib/n8n/RealWorkflowExecutor.ts:229
+- Issue: Query helper uses fixed host/user/database defaults in client-triggered flow.
+
+[MEDIUM] 12) API reliability issue: simulated fallback data returned with HTTP 200
+- File: packages/webapp/src/pages/api/moodle/stats.ts:138
+- File: packages/webapp/src/pages/api/moodle/students.ts:138
+- Issue: On DB failure, API still returns 200 + mock data, masking production incidents.
+
+[MEDIUM] 13) Non-deterministic analytics metric in API response
+- File: packages/webapp/src/pages/api/moodle/stats.ts:99
+- Issue: studentsAtRiskChange is random (Math.random), not data-driven.
+
+[MEDIUM] 14) TypeScript errors in n8n executor
+- File: packages/webapp/src/lib/n8n/WorkflowExecutor.ts:129
+- File: packages/webapp/src/lib/n8n/WorkflowExecutor.ts:134
+- File: packages/webapp/src/lib/n8n/WorkflowExecutor.ts:139
+- Issue: N8nNode type is referenced but not imported/defined.
+
+[MEDIUM] 15) Lint/build quality gate failures
+- File: packages/webapp/src/pages/database-settings/index.tsx:203
+- Issue: Unescaped quote characters (react/no-unescaped-entities).
+- File: packages/webapp/src/pages/dashboard/index-with-workflows.tsx:120
+- File: packages/webapp/src/pages/dashboard/index-with-workflows.tsx:315
+- Issue: Missing useEffect dependencies warnings.
+
+[MEDIUM] 16) Maintainability debt in dashboard codebase
+- File: packages/webapp/src/pages/dashboard/index.tsx
+- File: packages/webapp/src/pages/dashboard/index-with-workflows.tsx
+- File: packages/webapp/src/pages/dashboard/index-backup.tsx
+- Issue: Large monolithic page plus parallel legacy variants increase defect risk and update cost.
+
+[MEDIUM] 17) Insufficient automated test coverage
+- File: packages/webapp/src/lib/json/JsonProcessor.test.ts
+- Issue: Only one visible test file; critical API/security paths are untested.
+
+Validation commands executed:
+- npm run lint -> failed (syntax + lint errors).
+- npx tsc --noEmit src/lib/n8n/WorkflowExecutor.ts -> failed (N8nNode type errors and environment type conflicts).

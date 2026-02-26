@@ -1,0 +1,98 @@
+{
+  "name": "Generate Feedback Workflow",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-feedback",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "SELECT u.id as student_id, CONCAT(u.firstname, ' ', u.lastname) as student_name, u.email, u.firstname, u.lastname FROM mdl_user u WHERE u.deleted = 0 AND u.id > 1 ORDER BY u.id DESC LIMIT 20",
+        "options": {}
+      },
+      "id": "fetch-performance-data",
+      "name": "Fetch Performance Data",
+      "type": "n8n-nodes-base.mySql",
+      "typeVersion": 2.5,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.GROQ_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"model\": \"qwen/qwen3-32b\", \"messages\": [ { \"role\": \"system\", \"content\": \"You are a supportive educator. Generate personalized, constructive feedback for students. Focus on specific achievements, areas for growth, and actionable next steps. Be encouraging and specific. Respond in English or French only. Return ONLY a JSON object with these fields: feedback_text (string), strengths (string), improvements (string).\" }, { \"role\": \"user\", \"content\": \"Generate feedback for student: {{ $json.student_name }} ({{ $json.email }}). Provide encouraging feedback about their progress.\" } ], \"temperature\": 0.4, \"response_format\": { \"type\": \"json_object\" } }",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ai-generate-feedback",
+      "name": "AI Generate Feedback",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.item.json.choices?.[0]?.message?.content; let feedback; try { feedback = JSON.parse(response); } catch (e) { feedback = { feedback_text: 'Good work!', strengths: [], improvements: [] }; } return [{ json: { student_id: $('Fetch Performance Data').item.json.student_id, student_name: $('Fetch Performance Data').item.json.student_name, grade: $('Fetch Performance Data').item.json.grade, feedback } }];"
+      },
+      "id": "process-feedback",
+      "name": "Process Feedback",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "={{ 'feedback_' + $now.format('yyyy-MM-dd_HHmmss') + '.csv' }}",
+          "headerRow": true
+        }
+      },
+      "id": "export-csv",
+      "name": "Export to CSV",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Fetch Performance Data", "type": "main", "index": 0 }]]
+    },
+    "Fetch Performance Data": {
+      "main": [[{ "node": "AI Generate Feedback", "type": "main", "index": 0 }]]
+    },
+    "AI Generate Feedback": {
+      "main": [[{ "node": "Process Feedback", "type": "main", "index": 0 }]]
+    },
+    "Process Feedback": {
+      "main": [[{ "node": "Export to CSV", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "generate-feedback-004",
+  "tags": ["feedback", "education", "personalized"]
+}
