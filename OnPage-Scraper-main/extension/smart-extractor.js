@@ -475,7 +475,9 @@ class SmartExtractor {
                 totalFields: Object.values(smartData.data).reduce(
                     (acc, curr) => acc + (Array.isArray(curr) ? curr.length : 0), 0
                 ),
-                totalEntities: Array.isArray(smartData.entities) ? smartData.entities.length : 0,
+                totalEntities: Array.isArray(smartData.entities)
+                    ? smartData.entities.reduce((acc, entity) => acc + (entity.count || 0), 0)
+                    : 0,
                 totalForms: analysis.forms.length,
                 totalTables: analysis.tables.length,
                 domDepth: analysis.structuralAnalysis.depth

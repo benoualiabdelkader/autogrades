@@ -64,12 +64,14 @@ class SemanticAnalyzer {
             'Offer': 'offer',
             'Place': 'place'
         };
+        this._cachedDOMDepth = undefined; // Initialize cache
     }
 
     /**
      * تحليل شامل للصفحة
      */
     analyzePage() {
+        this.resetCache();
         const analysis = {
             timestamp: new Date().toISOString(),
             url: window.location.href,
@@ -104,6 +106,11 @@ class SemanticAnalyzer {
         };
 
         return analysis;
+    }
+
+    /** Reset temporary analysis session cache. */
+    resetCache() {
+        this._cachedDOMDepth = undefined;
     }
 
     /**
@@ -168,18 +175,24 @@ class SemanticAnalyzer {
 
     /**
      * حساب عمق DOM
+     * Uses caching to avoid redundant recursion during the same analysis cycle.
      */
     calculateDOMDepth(element = document.body, depth = 0) {
-        if (!element || !element.children || element.children.length === 0) {
-            return depth;
+        if (element === document.body && this._cachedDOMDepth !== undefined) {
+            return this._cachedDOMDepth;
         }
 
+        if (!element.children || element.children.length === 0) return depth;
+
         let maxDepth = depth;
-        Array.from(element.children).forEach(child => {
+        for (const child of element.children) {
             const childDepth = this.calculateDOMDepth(child, depth + 1);
             maxDepth = Math.max(maxDepth, childDepth);
-        });
+        }
 
+        if (element === document.body) {
+            this._cachedDOMDepth = maxDepth;
+        }
         return maxDepth;
     }
 
