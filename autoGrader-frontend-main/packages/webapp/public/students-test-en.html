@@ -1,0 +1,1431 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Student Testing System - AutoGrader Extension Test</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a1f35;
+            --bg-hover: #232a45;
+            --border: rgba(99, 102, 241, 0.15);
+            --border-active: rgba(99, 102, 241, 0.4);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --gradient-1: linear-gradient(135deg, #6366f1, #8b5cf6);
+            --gradient-2: linear-gradient(135deg, #3b82f6, #06b6d4);
+            --gradient-3: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ─── Ambient Background ─── */
+        .ambient-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .ambient-bg::before {
+            content: '';
+            position: absolute;
+            top: -20%;
+            right: -10%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: float 20s ease-in-out infinite;
+        }
+        .ambient-bg::after {
+            content: '';
+            position: absolute;
+            bottom: -10%;
+            left: -10%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: float 25s ease-in-out infinite reverse;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); }
+            25% { transform: translateY(-30px) translateX(20px); }
+            50% { transform: translateY(10px) translateX(-15px); }
+            75% { transform: translateY(-20px) translateX(10px); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        /* ─── Header ─── */
+        .header {
+            background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.05));
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 40px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(99,102,241,0.15), transparent);
+            border-radius: 50%;
+        }
+        .header-content {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header-icon {
+            width: 64px;
+            height: 64px;
+            background: var(--gradient-1);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 8px 32px rgba(99,102,241,0.3);
+        }
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(to right, #fff, #c7d2fe);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-top: 4px;
+        }
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 12px;
+            color: #10b981;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .header-badge .dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        /* ─── Stats Bar ─── */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.3s;
+        }
+        .stat-card:hover {
+            border-color: var(--border-active);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .stat-value { font-size: 1.8rem; font-weight: 800; color: var(--text-primary); }
+        .stat-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+        /* ─── Controls ─── */
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        .btn-primary {
+            background: var(--gradient-1);
+            color: white;
+            box-shadow: 0 4px 20px rgba(99,102,241,0.3);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 6px 28px rgba(99,102,241,0.4);
+            transform: translateY(-1px);
+        }
+        .btn-success {
+            background: var(--gradient-3);
+            color: white;
+            box-shadow: 0 4px 20px rgba(16,185,129,0.3);
+        }
+        .btn-success:hover {
+            box-shadow: 0 6px 28px rgba(16,185,129,0.4);
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--border-active);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* ─── Table ─── */
+        .table-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        .table-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .table-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        thead th {
+            background: rgba(99,102,241,0.05);
+            padding: 14px 16px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-align: left;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        tbody td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            font-size: 0.9rem;
+            vertical-align: top;
+        }
+        tbody tr {
+            transition: background 0.2s;
+        }
+        tbody tr:hover {
+            background: rgba(99,102,241,0.03);
+        }
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .student-name {
+            font-weight: 700;
+            color: var(--accent-light);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .student-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+        .answer-cell {
+            max-width: 300px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .answer-text {
+            display: -webkit-box;
+            line-clamp: 3;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .answer-text.expanded {
+            line-clamp: unset;
+            -webkit-line-clamp: unset;
+        }
+        .expand-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            font-size: 0.75rem;
+            cursor: pointer;
+            padding: 4px 0;
+            font-family: inherit;
+        }
+
+        /* ─── Results Section ─── */
+        .results-section {
+            display: none;
+            margin-top: 30px;
+        }
+        .results-section.visible { display: block; }
+        
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .result-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 24px;
+            transition: all 0.3s;
+        }
+        .result-card:hover {
+            border-color: var(--border-active);
+            transform: translateY(-2px);
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .result-score {
+            font-size: 2.5rem;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .result-grade {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+        .rule-bar {
+            margin: 8px 0;
+        }
+        .rule-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .rule-track {
+            height: 6px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .rule-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 1s ease;
+        }
+        .ai-feedback {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(99,102,241,0.05);
+            border: 1px solid rgba(99,102,241,0.1);
+            border-radius: 12px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* ─── Summary ─── */
+        .summary-card {
+            background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.05));
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .summary-stat {
+            text-align: center;
+            padding: 16px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 14px;
+        }
+        .summary-stat-value {
+            font-size: 2rem;
+            font-weight: 900;
+        }
+        .summary-stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ─── Loading ─── */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10,14,26,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .loading-overlay.visible { display: flex; }
+        .spinner {
+            width: 56px;
+            height: 56px;
+            border: 3px solid rgba(99,102,241,0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 1.1rem; color: var(--text-secondary); }
+        .progress-bar-container {
+            width: 300px;
+            height: 6px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--gradient-1);
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        /* ─── Rules Editor ─── */
+        .rules-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 30px;
+            display: none;
+        }
+        .rules-panel.visible { display: block; }
+        .rule-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            margin-bottom: 8px;
+        }
+        .rule-input {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .rule-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        select.rule-input {
+            cursor: pointer;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 200;
+            transition: transform 0.4s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toast.visible { transform: translateX(-50%) translateY(0); }
+        .toast-success { background: rgba(16,185,129,0.2); border: 1px solid rgba(16,185,129,0.3); color: #10b981; }
+        .toast-error { background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; }
+        .toast-info { background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.3); color: var(--accent-light); }
+
+        @media (max-width: 768px) {
+            .header { padding: 24px; }
+            .header h1 { font-size: 1.4rem; }
+            .controls { flex-direction: column; }
+            .btn { width: 100%; justify-content: center; }
+            .rule-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg"></div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">Analyzing data with AI...</div>
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progressBar"></div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast toast-success" id="toast">
+        <span id="toastIcon">✓</span>
+        <span id="toastText"></span>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-title">
+                    <div class="header-icon">🎓</div>
+                    <div>
+                        <h1>Student Testing System</h1>
+                        <p>Test page for Extension + AI Grading System</p>
+                    </div>
+                </div>
+                <div class="header-badge">
+                    <div class="dot"></div>
+                    Ready for Extension
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(99,102,241,0.15); color: var(--accent-light);">👨‍🎓</div>
+                <div>
+                    <div class="stat-value" id="statStudents">12</div>
+                    <div class="stat-label">Students</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(16,185,129,0.15); color: #10b981;">📝</div>
+                <div>
+                    <div class="stat-value" id="statQuestions">5</div>
+                    <div class="stat-label">Questions</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245,158,11,0.15); color: #f59e0b;">📊</div>
+                <div>
+                    <div class="stat-value" id="statAnswers">60</div>
+                    <div class="stat-label">Answers</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(236,72,153,0.15); color: #ec4899;">⚡</div>
+                <div>
+                    <div class="stat-value" id="statStatus">Ready</div>
+                    <div class="stat-label">Status</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn btn-primary" onclick="sendToExtension()">
+                📤 Send to System (Extension Simulation)
+            </button>
+            <button class="btn btn-success" onclick="analyzeWithAI(false)">
+                🧠 Analyze with Local Rules
+            </button>
+            <button class="btn btn-success" onclick="analyzeWithAI(true)" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">
+                🤖 Analyze with AI + Rules
+            </button>
+            <button class="btn btn-secondary" onclick="toggleRules()">
+                ⚙️ Edit Rules
+            </button>
+            <button class="btn btn-secondary" onclick="exportCSV()">
+                📥 Export CSV
+            </button>
+        </div>
+
+        <!-- Rules Panel -->
+        <div class="rules-panel" id="rulesPanel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="font-size:1.2rem; font-weight:700;">⚙️ Grading Rules</h3>
+                <div style="display:flex; gap:8px;">
+                    <select class="rule-input" id="templateSelect" onchange="loadTemplate()" style="width:auto;">
+                        <option value="general">General</option>
+                        <option value="essay" selected>Essay</option>
+                        <option value="quiz">Quiz</option>
+                        <option value="programming">Programming</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="addRule()" style="padding:8px 16px; font-size:0.8rem;">+ Add Rule</button>
+                </div>
+            </div>
+            <div id="rulesContainer"></div>
+        </div>
+
+        <!-- Students Table -->
+        <div class="table-wrapper">
+            <div class="table-header">
+                <div class="table-title">
+                    <span>📋</span>
+                    <span>Student Data &amp; Answers</span>
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-muted);">
+                    Extension can scrape this data directly
+                </div>
+            </div>
+            <div style="overflow-x: auto;">
+                <table id="studentsTable">
+                    <thead id="tableHead"></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="results-section" id="resultsSection">
+            <!-- Summary -->
+            <div class="summary-card" id="summaryCard">
+                <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:8px;">📊 Analysis Summary</h3>
+                <p style="color:var(--text-muted); font-size:0.9rem;" id="summarySubtitle"></p>
+                <div class="summary-stats" id="summaryStats"></div>
+            </div>
+
+            <!-- Results Grid -->
+            <div class="results-grid" id="resultsGrid"></div>
+        </div>
+    </div>
+
+<script>
+// ═══════════════════════════════════════════
+// Student Data
+// ═══════════════════════════════════════════
+
+const QUESTIONS = [
+    "What is Artificial Intelligence? Explain its core concept.",
+    "What is the difference between Machine Learning and Deep Learning?",
+    "List three practical applications of AI in education.",
+    "What are Neural Networks and how do they work?",
+    "Discuss the ethical challenges of Artificial Intelligence."
+];
+
+const STUDENTS = [
+    {
+        id: "STU001",
+        name: "Ahmed Al-Mansouri",
+        answers: {
+            [QUESTIONS[0]]: "Artificial Intelligence is a branch of computer science focused on creating systems capable of performing tasks that require human intelligence. This includes learning, reasoning, problem solving, and decision making. It relies on mathematical algorithms and computational models that simulate how the human brain processes information.",
+            [QUESTIONS[1]]: "Machine Learning is a branch of AI that enables systems to learn from data without explicit programming. Deep Learning is a subset of Machine Learning that uses multi-layered neural networks to process complex data such as images and text. Deep Learning requires more data and computational power but achieves better results on complex tasks.",
+            [QUESTIONS[2]]: "First: Automated assignment grading systems that evaluate student work. Second: Intelligent tutoring assistants that help students study and answer questions. Third: Student performance analytics and early warning systems to identify at-risk learners.",
+            [QUESTIONS[3]]: "Neural networks are computational models inspired by the structure of the human brain. They consist of layers of interconnected nodes that process data sequentially. They are trained using large datasets and the backpropagation algorithm to adjust weights and minimize error.",
+            [QUESTIONS[4]]: "Ethical challenges include: privacy and personal data protection, algorithmic bias that may lead to unfair discrimination, the impact of automation on the job market and job displacement, and the question of accountability when errors occur in AI systems."
+        }
+    },
+    {
+        id: "STU002",
+        name: "Fatima Hassan",
+        answers: {
+            [QUESTIONS[0]]: "Artificial Intelligence is technology that makes machines think like humans. It is used in many applications such as self-driving cars and voice assistants like Siri and Alexa.",
+            [QUESTIONS[1]]: "Machine Learning learns from data. Deep Learning uses many-layered neural networks and is more complex. For example, facial recognition uses Deep Learning.",
+            [QUESTIONS[2]]: "1. Automated exam correction\n2. Automatic translation of educational texts\n3. Recommendation systems for suitable study materials based on each student's level and performance",
+            [QUESTIONS[3]]: "They are mathematical models that mimic nerve cells in the brain. Each cell receives inputs and produces outputs after applying an activation function.",
+            [QUESTIONS[4]]: "There are many ethical challenges including the issue of privacy where AI systems collect massive amounts of data. There are also concerns about robots replacing humans in the workplace."
+        }
+    },
+    {
+        id: "STU003",
+        name: "Omar Khalid",
+        answers: {
+            [QUESTIONS[0]]: "Artificial Intelligence is just smart computer programs.",
+            [QUESTIONS[1]]: "Machine Learning is simpler than Deep Learning.",
+            [QUESTIONS[2]]: "It is used in education in different ways.",
+            [QUESTIONS[3]]: "Networks like nerves.",
+            [QUESTIONS[4]]: "Dangerous for humanity."
+        }
+    },
+    {
+        id: "STU004",
+        name: "Maryam Al-Sayed",
+        answers: {
+            [QUESTIONS[0]]: "Artificial Intelligence (AI) is a broad field in computer science that aims to build intelligent machines capable of simulating human cognitive abilities. It includes several subfields: Natural Language Processing, Computer Vision, Automated Planning, and Machine Learning. Historically, the field began in the 1950s with the work of Alan Turing.",
+            [QUESTIONS[1]]: "Machine Learning (ML) is a set of techniques that enable computers to learn from data and make decisions based on discovered patterns. It includes types such as supervised learning, unsupervised learning, and reinforcement learning.\n\nDeep Learning (DL) is an advanced class of Machine Learning that uses artificial neural networks with multiple layers (Deep Neural Networks). It excels at automatically extracting features from raw data without the need for manual feature engineering.",
+            [QUESTIONS[2]]: "Practical applications:\n1. Automated assessment and grading systems: Use NLP algorithms to evaluate student responses\n2. Adaptive learning: Platforms like DreamBox adapt to each student's level\n3. Early detection of struggling students: Analyzing performance data to predict academic risks",
+            [QUESTIONS[3]]: "Artificial Neural Networks (ANNs) are computational models inspired by the biological structure of the human brain. They consist of:\n- Input Layer\n- Hidden Layers\n- Output Layer\n\nHow they work:\n1. Nodes receive weighted inputs\n2. Apply an activation function (e.g., ReLU or Sigmoid)\n3. Pass the result to the next layer\n4. Backpropagation algorithm adjusts weights based on error",
+            [QUESTIONS[4]]: "Key ethical challenges:\n\n1. Privacy: Collecting and processing vast amounts of personal data raises concerns about privacy violations\n\n2. Algorithmic Bias: If training data is biased, the system's decisions will be biased too, e.g., in hiring systems\n\n3. Legal Accountability: Who is responsible when an error occurs — the developer, user, or the system itself?\n\n4. Technological Unemployment: Replacing human labor with automation\n\n5. Autonomous Weapons: Using AI in autonomous weapon systems"
+        }
+    },
+    {
+        id: "STU005",
+        name: "Youssef Abdullah",
+        answers: {
+            [QUESTIONS[0]]: "AI is the science of studying how to make computers perform intelligent tasks. It includes pattern recognition, decision making, and language processing.",
+            [QUESTIONS[1]]: "The key difference is that Deep Learning uses many layers while Machine Learning may use a single layer or simpler methods like decision trees and SVM.",
+            [QUESTIONS[2]]: "- Virtual tutors that answer student questions\n- Analyzing educational videos and creating summaries\n- Detecting cheating in online exams",
+            [QUESTIONS[3]]: "Simply put, they are layers of processing units that resemble neurons. Each unit takes inputs and produces outputs. Training is done by adjusting the weights.",
+            [QUESTIONS[4]]: "The most important challenges: data privacy, bias in decisions, and the impact on jobs. Strict laws must be established to regulate the use of AI and protect individuals."
+        }
+    },
+    {
+        id: "STU006",
+        name: "Nour Ibrahim",
+        answers: {
+            [QUESTIONS[0]]: "Artificial Intelligence is a vast field that includes developing intelligent systems that simulate human thinking, perception, and learning. It encompasses different areas such as machine learning, computer vision, natural language processing, and expert systems.",
+            [QUESTIONS[1]]: "Machine Learning (ML) is a technique that relies on algorithms to find patterns in data. It includes methods like regression, classification, and clustering. Deep Learning (DL) is an evolution of ML that uses deep neural networks with many layers. It excels at complex tasks like image recognition and translation.",
+            [QUESTIONS[2]]: "1. Automated Assessment: Systems that evaluate student essay responses using NLP\n2. Personalized Learning: Customized learning paths for each student based on their abilities\n3. Learning Analytics: Using student data to predict performance and help struggling learners",
+            [QUESTIONS[3]]: "Neural networks are computational models composed of nodes (neurons) organized in layers. They work as follows:\n1. The input layer receives data\n2. Hidden layers process the data\n3. The output layer gives the result\nEach connection has a weight that is adjusted during training.",
+            [QUESTIONS[4]]: "Challenges include:\n- Data privacy and personal information protection\n- Racial and gender bias in algorithms\n- Job loss due to automation\n- Difficulty interpreting model decisions (Black Box problem)\n- Military use and surveillance"
+        }
+    },
+    {
+        id: "STU007",
+        name: "Sarah Ahmed",
+        answers: {
+            [QUESTIONS[0]]: "It means computer is smart",
+            [QUESTIONS[1]]: "I don't know the exact difference",
+            [QUESTIONS[2]]: "E-learning",
+            [QUESTIONS[3]]: "Networks in computers",
+            [QUESTIONS[4]]: "Could be dangerous"
+        }
+    },
+    {
+        id: "STU008",
+        name: "Mohammed Al-Omari",
+        answers: {
+            [QUESTIONS[0]]: "Artificial Intelligence is the simulation of human intelligence in machines. This is done by creating programs and algorithms that can learn and make decisions. The most notable types include: Narrow AI specialized in a single task, and Artificial General Intelligence (AGI) which aims to simulate the full range of human capabilities.",
+            [QUESTIONS[1]]: "Machine Learning: A broad umbrella that includes algorithms that learn from data. Examples: Random Forest, SVM, KNN, Naive Bayes.\n\nDeep Learning: A part of Machine Learning that uses Neural Networks with deep layers. It requires more data and computational power but is stronger for complex tasks.",
+            [QUESTIONS[2]]: "AI applications in education:\n1. Educational Chatbots: Like ChatGPT that helps explain concepts\n2. Automatic Grading: Systems that evaluate essay answers like AutoGrader\n3. Learning Behavior Analysis: Tracking student progress and providing personalized recommendations",
+            [QUESTIONS[3]]: "Artificial Neural Networks are inspired by biological neurons:\n\n- Neurons: Basic computational units\n- Weights: Connection weights between units\n- Bias: Additional values to adjust output\n- Activation Functions: Such as Sigmoid, ReLU, Tanh\n- Training: Via Forward Pass then Backpropagation\n- Loss Function: To measure error\n- Optimizer: Such as Adam, SGD to improve weights",
+            [QUESTIONS[4]]: "Discussing Ethical Challenges:\n\n1. Privacy & Data Protection: AI systems collect massive data, threatening individual privacy. Example: Smart surveillance cameras.\n\n2. Algorithmic Bias: Bias resulting from unbalanced training data. Example: Amazon's hiring system biased against women.\n\n3. Job Displacement: McKinsey report predicts 800 million jobs lost by 2030.\n\n4. Accountability: Who bears responsibility when a self-driving car makes an error?\n\n5. Deepfakes: A dangerous technique for forging video and audio content."
+        }
+    },
+    {
+        id: "STU009",
+        name: "Layla Mahmoud",
+        answers: {
+            [QUESTIONS[0]]: "Artificial Intelligence is a scientific field concerned with building intelligent computer systems that can learn, adapt, and solve problems independently.",
+            [QUESTIONS[1]]: "Machine Learning is broader and more comprehensive, and includes Deep Learning. Deep Learning specializes in deep neural networks and achieves better results with unstructured data.",
+            [QUESTIONS[2]]: "1- Educational recommendation systems (like Khan Academy)\n2- Automated tutors and educational chatbots\n3- Analyzing student performance data and predicting outcomes",
+            [QUESTIONS[3]]: "Networks of artificial nodes arranged in layers. They learn by adjusting the connection weights between nodes based on data and calculated errors.",
+            [QUESTIONS[4]]: "Key challenges include: privacy protection, fairness in automated decisions, legal responsibility for errors, and the impact of automation on the job market. Ethical and legal frameworks must be developed to regulate the use of these technologies."
+        }
+    },
+    {
+        id: "STU010",
+        name: "Khalid Al-Rashidi",
+        answers: {
+            [QUESTIONS[0]]: "AI or Artificial Intelligence is technology that enables devices to learn and think. Some of the most famous examples include ChatGPT and facial recognition systems.",
+            [QUESTIONS[1]]: "Both learn from data but Deep Learning is more powerful and requires more data. Machine Learning works with less data and is faster to execute.",
+            [QUESTIONS[2]]: "Uses of AI in education:\n- Automatic test scoring\n- Personalized tutoring for each student\n- Tracking academic progress",
+            [QUESTIONS[3]]: "A network of interconnected nodes in layers. Each node calculates a certain value and passes it to the next node.",
+            [QUESTIONS[4]]: "Challenges: privacy, algorithmic bias, unemployment, military applications. Laws need to be put in place to regulate everything."
+        }
+    },
+    {
+        id: "STU011",
+        name: "Huda Abdulrahman",
+        answers: {
+            [QUESTIONS[0]]: "Artificial Intelligence (AI) is the science and engineering of making intelligent machines, especially intelligent computer programs. It is related to the similar task of using computers to understand human intelligence. The primary goal is to develop systems capable of performing tasks that typically require human intelligence such as learning, creativity, and problem solving.",
+            [QUESTIONS[1]]: "Machine Learning (ML):\n- Includes diverse algorithms (SVM, Decision Trees, etc.)\n- Requires manual feature engineering\n- Works well with structured data\n\nDeep Learning (DL):\n- Uses deep neural networks\n- Extracts features automatically\n- Excels at images, audio, and text\n- Requires GPU and large datasets",
+            [QUESTIONS[2]]: "Practical applications in education:\n\n1. Smart Assessment: Systems like Grammarly and AutoGrader evaluate student writing and provide instant feedback. They use NLP to understand texts.\n\n2. Adaptive Learning: Platforms like DreamBox and Khan Academy adapt to each student's level and deliver appropriate content.\n\n3. Early Warning Systems: Data analytics systems that detect students at risk of failure early and alert teachers.",
+            [QUESTIONS[3]]: "Artificial Neural Networks:\n\nConcept: A mathematical model inspired by brain structure. It consists of:\n• Input Layer\n• Hidden Layers — can be dozens or hundreds\n• Output Layer\n\nHow they work:\n1. Forward Propagation: Passing data through the network\n2. Calculating error via Loss Function (e.g., Cross-Entropy)\n3. Backpropagation: Computing partial derivatives\n4. Updating weights via Gradient Descent\n5. Repeating the process until error is minimized",
+            [QUESTIONS[4]]: "Ethical Challenges — In-depth Analysis:\n\n1. Privacy: GDPR in Europe attempts to address this. But companies like Meta and Google collect massive data. Example: Cambridge Analytica scandal.\n\n2. Bias: Studies proved COMPAS criminal justice system was biased against African Americans. Solution: Diversifying training data.\n\n3. Transparency: The Black Box problem — we cannot interpret decisions of complex models. Solution: Developing Explainable AI (XAI).\n\n4. Job Market: WEF report predicts 85 million jobs disappearing but 97 million new jobs emerging by 2025.\n\n5. Weapons: The 'Stop Killer Robots' campaign calls for banning autonomous weapons."
+        }
+    },
+    {
+        id: "STU012",
+        name: "Zaid Hamdan",
+        answers: {
+            [QUESTIONS[0]]: "Artificial Intelligence is a science concerned with creating machines that can think and learn. It is used in robots, self-driving cars, smart assistants, and data analysis.",
+            [QUESTIONS[1]]: "Machine Learning uses relatively simple algorithms. Deep Learning uses complex neural networks. The former is faster and the latter is more accurate.",
+            [QUESTIONS[2]]: "1. Automated grading 2. Virtual tutors 3. Performance analytics",
+            [QUESTIONS[3]]: "Layers of nodes like neurons. Inputs pass through hidden layers and come out as results. Training improves the weights.",
+            [QUESTIONS[4]]: "Privacy, bias, and jobs are the most important challenges. Also the question of who bears responsibility when errors occur."
+        }
+    }
+];
+
+// ═══════════════════════════════════════════
+// Default Rules
+// ═══════════════════════════════════════════
+let currentRules = [
+    { id: 'accuracy', name: 'Scientific Accuracy', nameAr: 'Scientific Accuracy', weight: 35, type: 'keyword', config: {} },
+    { id: 'completeness', name: 'Completeness', nameAr: 'Answer Completeness', weight: 25, type: 'completeness', config: { minLength: 20, idealLength: 150 } },
+    { id: 'structure', name: 'Structure', nameAr: 'Organization & Structure', weight: 20, type: 'structure', config: { requireExamples: true } },
+    { id: 'language', name: 'Language', nameAr: 'Language Quality', weight: 20, type: 'length', config: { minLength: 10, idealLength: 200 } }
+];
+
+let analysisResults = null;
+
+// ═══════════════════════════════════════════
+// Initialize
+// ═══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    renderTable();
+    renderRules();
+    updateStats();
+});
+
+function updateStats() {
+    document.getElementById('statStudents').textContent = STUDENTS.length;
+    document.getElementById('statQuestions').textContent = QUESTIONS.length;
+    document.getElementById('statAnswers').textContent = STUDENTS.length * QUESTIONS.length;
+}
+
+// ═══════════════════════════════════════════
+// Render Table
+// ═══════════════════════════════════════════
+function renderTable() {
+    const thead = document.getElementById('tableHead');
+    const tbody = document.getElementById('tableBody');
+
+    // Header
+    let headerHTML = '<tr><th>#</th><th>Student</th>';
+    QUESTIONS.forEach((q, i) => {
+        headerHTML += `<th>Q${i + 1}: ${q.substring(0, 35)}...</th>`;
+    });
+    headerHTML += '</tr>';
+    thead.innerHTML = headerHTML;
+
+    // Body
+    const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#a855f7', '#3b82f6', '#e11d48'];
+    
+    let bodyHTML = '';
+    STUDENTS.forEach((student, idx) => {
+        const color = colors[idx % colors.length];
+        const initials = student.name.split(' ').map(w => w[0]).slice(0, 2).join('');
+        
+        bodyHTML += `<tr>`;
+        bodyHTML += `<td style="color:var(--text-muted); font-size:0.8rem; font-family:monospace;">${idx + 1}</td>`;
+        bodyHTML += `<td><div class="student-name">
+            <div class="student-avatar" style="background:${color}20; color:${color};">${initials}</div>
+            <div>
+                <div>${student.name}</div>
+                <div style="font-size:0.7rem; color:var(--text-muted); font-weight:400;">${student.id}</div>
+            </div>
+        </div></td>`;
+        
+        QUESTIONS.forEach((q) => {
+            const answer = student.answers[q] || '';
+            const truncated = answer.length > 100 ? answer.substring(0, 100) + '...' : answer;
+            bodyHTML += `<td class="answer-cell">
+                <div class="answer-text" id="answer_${student.id}_${QUESTIONS.indexOf(q)}">${truncated}</div>
+                ${answer.length > 100 ? `<button class="expand-btn" onclick="toggleAnswer('${student.id}', ${QUESTIONS.indexOf(q)})">Show more ↓</button>` : ''}
+            </td>`;
+        });
+        
+        bodyHTML += `</tr>`;
+    });
+    tbody.innerHTML = bodyHTML;
+}
+
+function toggleAnswer(studentId, qIdx) {
+    const el = document.getElementById(`answer_${studentId}_${qIdx}`);
+    const student = STUDENTS.find(s => s.id === studentId);
+    if (!student) return;
+    
+    const isExpanded = el.classList.contains('expanded');
+    if (isExpanded) {
+        const answer = student.answers[QUESTIONS[qIdx]] || '';
+        el.textContent = answer.length > 100 ? answer.substring(0, 100) + '...' : answer;
+        el.classList.remove('expanded');
+        el.nextElementSibling.textContent = 'Show more ↓';
+    } else {
+        el.textContent = student.answers[QUESTIONS[qIdx]] || '';
+        el.classList.add('expanded');
+        el.nextElementSibling.textContent = 'Show less ↑';
+    }
+}
+
+// ═══════════════════════════════════════════
+// Rules Management
+// ═══════════════════════════════════════════
+function toggleRules() {
+    const panel = document.getElementById('rulesPanel');
+    panel.classList.toggle('visible');
+}
+
+function renderRules() {
+    const container = document.getElementById('rulesContainer');
+    container.innerHTML = currentRules.map((rule, idx) => `
+        <div class="rule-row">
+            <input class="rule-input" value="${rule.nameAr}" placeholder="Rule name" onchange="currentRules[${idx}].nameAr = this.value">
+            <select class="rule-input" onchange="currentRules[${idx}].type = this.value">
+                <option value="keyword" ${rule.type === 'keyword' ? 'selected' : ''}>Keywords</option>
+                <option value="completeness" ${rule.type === 'completeness' ? 'selected' : ''}>Completeness</option>
+                <option value="length" ${rule.type === 'length' ? 'selected' : ''}>Answer Length</option>
+                <option value="structure" ${rule.type === 'structure' ? 'selected' : ''}>Structure</option>
+                <option value="accuracy" ${rule.type === 'accuracy' ? 'selected' : ''}>Accuracy</option>
+            </select>
+            <input class="rule-input" type="number" value="${rule.weight}" min="0" max="100" placeholder="Weight" onchange="currentRules[${idx}].weight = parseInt(this.value)">
+            <button class="btn btn-danger" style="padding:8px 12px; font-size:0.8rem;" onclick="removeRule(${idx})">✕</button>
+        </div>
+    `).join('');
+}
+
+function addRule() {
+    currentRules.push({
+        id: 'rule_' + Date.now(),
+        name: 'New Rule',
+        nameAr: 'New Rule',
+        weight: 20,
+        type: 'keyword',
+        config: {}
+    });
+    renderRules();
+}
+
+function removeRule(idx) {
+    currentRules.splice(idx, 1);
+    renderRules();
+}
+
+function loadTemplate() {
+    const template = document.getElementById('templateSelect').value;
+    const templates = {
+        'general': [
+            { id: 'content', name: 'Content', nameAr: 'Content Quality', weight: 40, type: 'keyword', config: {} },
+            { id: 'depth', name: 'Depth', nameAr: 'Answer Depth', weight: 30, type: 'completeness', config: { minLength: 15, idealLength: 200 } },
+            { id: 'presentation', name: 'Presentation', nameAr: 'Presentation', weight: 30, type: 'length', config: { minLength: 5, idealLength: 150 } }
+        ],
+        'essay': [
+            { id: 'accuracy', name: 'Accuracy', nameAr: 'Scientific Accuracy', weight: 35, type: 'keyword', config: {} },
+            { id: 'completeness', name: 'Completeness', nameAr: 'Completeness', weight: 25, type: 'completeness', config: { minLength: 20, idealLength: 150 } },
+            { id: 'structure', name: 'Structure', nameAr: 'Structure', weight: 20, type: 'structure', config: { requireExamples: true } },
+            { id: 'language', name: 'Language', nameAr: 'Language Quality', weight: 20, type: 'length', config: { minLength: 10, idealLength: 200 } }
+        ],
+        'quiz': [
+            { id: 'correct', name: 'Correct', nameAr: 'Answer Correctness', weight: 100, type: 'accuracy', config: {} }
+        ],
+        'programming': [
+            { id: 'code', name: 'Code', nameAr: 'Code Correctness', weight: 40, type: 'keyword', config: {} },
+            { id: 'quality', name: 'Quality', nameAr: 'Code Quality', weight: 30, type: 'structure', config: {} },
+            { id: 'complete', name: 'Complete', nameAr: 'Completeness', weight: 30, type: 'completeness', config: { minLength: 20, idealLength: 500 } }
+        ]
+    };
+    currentRules = templates[template] || templates['general'];
+    renderRules();
+    showToast('Template loaded successfully', 'success');
+}
+
+// ═══════════════════════════════════════════
+// Send to Extension (Simulate)
+// ═══════════════════════════════════════════
+async function sendToExtension() {
+    showLoading('Sending data to the system...');
+    
+    // Transform data to extension format
+    const extensionData = {
+        source: 'OnPage Scraper Extension',
+        url: window.location.href,
+        pageTitle: document.title,
+        timestamp: new Date().toISOString(),
+        data: [],
+        statistics: {
+            totalItems: 0,
+            totalFields: QUESTIONS.length + 1,
+            fieldCounts: {}
+        }
+    };
+
+    STUDENTS.forEach(student => {
+        // Student name
+        extensionData.data.push({
+            id: student.id,
+            fieldName: 'student_name',
+            name: 'Student Name',
+            value: student.name,
+            type: 'text'
+        });
+
+        // Each answer
+        QUESTIONS.forEach((q, qIdx) => {
+            extensionData.data.push({
+                id: `${student.id}_q${qIdx + 1}`,
+                fieldName: `question_${qIdx + 1}`,
+                name: `Question ${qIdx + 1}`,
+                value: student.answers[q] || '',
+                type: 'text',
+                metadata: {
+                    studentId: student.id,
+                    studentName: student.name,
+                    questionText: q,
+                    questionIndex: qIdx
+                }
+            });
+        });
+    });
+
+    extensionData.statistics.totalItems = extensionData.data.length;
+
+    try {
+        const response = await fetch('http://localhost:3000/api/scraper-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(extensionData)
+        });
+
+        if (response.ok) {
+            hideLoading();
+            showToast(`Successfully sent ${extensionData.data.length} items!`, 'success');
+        } else {
+            throw new Error('Failed to send data');
+        }
+    } catch (error) {
+        hideLoading();
+        showToast('Could not connect to the system. Make sure the server is running on localhost:3000', 'error');
+        console.error(error);
+    }
+}
+
+// ═══════════════════════════════════════════
+// AI Analysis
+// ═══════════════════════════════════════════
+async function analyzeWithAI(useAI = false) {
+    showLoading(useAI ? 'Analyzing with Artificial Intelligence...' : 'Analyzing with local rules...');
+    
+    const requestBody = {
+        students: STUDENTS.map(s => ({
+            id: s.id,
+            name: s.name,
+            answers: s.answers
+        })),
+        questions: QUESTIONS,
+        rules: currentRules,
+        useAI: useAI,
+        language: 'en'
+    };
+
+    try {
+        const response = await fetch('http://localhost:3000/api/extension/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            analysisResults = data;
+            renderResults(data);
+            hideLoading();
+            showToast(`Successfully analyzed ${data.metadata.totalResults} answers!`, 'success');
+        } else {
+            throw new Error(data.error || 'Analysis failed');
+        }
+    } catch (error) {
+        hideLoading();
+        
+        // Fallback: local analysis
+        console.warn('Server unavailable, running local analysis');
+        const localResults = analyzeLocally(requestBody);
+        analysisResults = localResults;
+        renderResults(localResults);
+        showToast('Analyzed locally (server unavailable)', 'info');
+    }
+}
+
+function analyzeLocally(request) {
+    const startTime = Date.now();
+    const results = [];
+
+    for (const student of request.students) {
+        for (const question of request.questions) {
+            const answer = student.answers[question] || '';
+            const ruleScores = {};
+            let totalWeighted = 0;
+            let totalWeight = 0;
+
+            for (const rule of request.rules) {
+                const score = evaluateRuleLocal(rule, answer);
+                ruleScores[rule.id] = {
+                    score,
+                    comment: `${rule.nameAr}: ${score}/100`,
+                    weight: rule.weight,
+                    weightedScore: (score * rule.weight) / 100
+                };
+                totalWeighted += (score * rule.weight) / 100;
+                totalWeight += rule.weight;
+            }
+
+            const totalScore = totalWeight > 0 ? Math.round((totalWeighted / totalWeight) * 100) : 0;
+            const gradeInfo = getGradeLocal(totalScore);
+
+            results.push({
+                studentId: student.id,
+                studentName: student.name,
+                question,
+                answer: answer.substring(0, 500),
+                totalScore,
+                grade: gradeInfo.grade,
+                gradeLabel: gradeInfo.grade,
+                gradeColor: gradeInfo.color,
+                ruleScores,
+                aiAnalysis: null,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+
+    // Summary
+    const scores = results.map(r => r.totalScore);
+    const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    const sorted = [...scores].sort((a, b) => a - b);
+    const median = sorted.length % 2 === 0 ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2 : sorted[Math.floor(sorted.length / 2)];
+
+    const gradeDistribution = {};
+    results.forEach(r => { gradeDistribution[r.grade] = (gradeDistribution[r.grade] || 0) + 1; });
+
+    const studentAverages = {};
+    results.forEach(r => {
+        if (!studentAverages[r.studentName]) studentAverages[r.studentName] = { total: 0, count: 0 };
+        studentAverages[r.studentName].total += r.totalScore;
+        studentAverages[r.studentName].count += 1;
+    });
+    const studentRanking = Object.entries(studentAverages)
+        .map(([name, s]) => ({ name, average: Math.round(s.total / s.count) }))
+        .sort((a, b) => b.average - a.average);
+
+    return {
+        success: true,
+        results,
+        summary: {
+            averageScore: Math.round(avg),
+            medianScore: Math.round(median),
+            highestScore: Math.max(...scores),
+            lowestScore: Math.min(...scores),
+            passRate: Math.round((scores.filter(s => s >= 60).length / scores.length) * 100),
+            gradeDistribution,
+            studentRanking,
+            topPerformers: studentRanking.filter(s => s.average >= 80).map(s => s.name),
+            atRiskStudents: studentRanking.filter(s => s.average < 60).map(s => s.name)
+        },
+        metadata: {
+            totalStudents: request.students.length,
+            totalQuestions: request.questions.length,
+            totalResults: results.length,
+            processingTime: Date.now() - startTime,
+            aiEnhanced: false,
+            rulesApplied: request.rules.length,
+            timestamp: new Date().toISOString()
+        }
+    };
+}
+
+function evaluateRuleLocal(rule, answer) {
+    const len = (answer || '').trim().length;
+
+    switch (rule.type) {
+        case 'keyword': return Math.min(100, Math.max(0, len > 10 ? 55 + Math.min(45, len / 4) : (len > 0 ? 20 : 0)));
+        case 'length': {
+            const min = rule.config?.minLength || 10;
+            const ideal = rule.config?.idealLength || 200;
+            if (len === 0) return 0;
+            if (len < min) return Math.round((len / min) * 40);
+            return Math.round(Math.max(60, 100 - Math.abs(len - ideal) / ideal * 40));
+        }
+        case 'completeness': {
+            const min = rule.config?.minLength || 15;
+            const ideal = rule.config?.idealLength || 200;
+            const sentences = (answer || '').split(/[.!?\n]+/).filter(s => s.trim().length > 3);
+            if (len >= ideal) return Math.min(100, 85 + sentences.length * 3);
+            if (len >= min) return 40 + Math.round(((len - min) / (ideal - min)) * 50);
+            if (len > 0) return Math.round((len / min) * 40);
+            return 0;
+        }
+        case 'structure': {
+            const paragraphs = (answer || '').split(/\n\n+/).filter(p => p.trim().length > 5);
+            const sentences = (answer || '').split(/[.!?\n]+/).filter(s => s.trim().length > 3);
+            const hasExamples = /example|for instance|such as|e\.g\./i.test(answer || '');
+            return Math.min(100, Math.round(40 + (paragraphs.length >= 2 ? 20 : 0) + (sentences.length >= 3 ? 15 : 0) + (hasExamples ? 15 : 0) + Math.min(10, len / 50)));
+        }
+        case 'accuracy': return len > 10 ? 60 + Math.min(30, len / 10) : (len > 0 ? 25 : 0);
+        default: return 50;
+    }
+}
+
+function getGradeLocal(score) {
+    if (score >= 90) return { grade: 'Excellent', color: '#10b981' };
+    if (score >= 80) return { grade: 'Very Good', color: '#3b82f6' };
+    if (score >= 70) return { grade: 'Good', color: '#f59e0b' };
+    if (score >= 60) return { grade: 'Acceptable', color: '#f97316' };
+    if (score >= 50) return { grade: 'Weak', color: '#ef4444' };
+    return { grade: 'Fail', color: '#dc2626' };
+}
+
+// ═══════════════════════════════════════════
+// Render Results
+// ═══════════════════════════════════════════
+function renderResults(data) {
+    const section = document.getElementById('resultsSection');
+    section.classList.add('visible');
+
+    // Summary
+    const summary = data.summary;
+    document.getElementById('summarySubtitle').textContent = 
+        `Analyzed ${data.metadata.totalResults} answers in ${data.metadata.processingTime}ms • ${data.metadata.aiEnhanced ? 'AI-Enhanced Analysis' : 'Local Rules Analysis'}`;
+
+    const summaryHTML = `
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: ${summary.averageScore >= 70 ? '#10b981' : summary.averageScore >= 50 ? '#f59e0b' : '#ef4444'}">${summary.averageScore}</div>
+            <div class="summary-stat-label">Overall Average</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: var(--accent-light)">${summary.medianScore}</div>
+            <div class="summary-stat-label">Median</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: #10b981">${summary.highestScore}</div>
+            <div class="summary-stat-label">Highest</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: #ef4444">${summary.lowestScore}</div>
+            <div class="summary-stat-label">Lowest</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: #06b6d4">${summary.passRate}%</div>
+            <div class="summary-stat-label">Pass Rate</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: #f59e0b">${data.metadata.processingTime}ms</div>
+            <div class="summary-stat-label">Processing Time</div>
+        </div>
+    `;
+    document.getElementById('summaryStats').innerHTML = summaryHTML;
+
+    // Group results by student
+    const byStudent = {};
+    data.results.forEach(r => {
+        if (!byStudent[r.studentName]) byStudent[r.studentName] = [];
+        byStudent[r.studentName].push(r);
+    });
+
+    // Render result cards
+    const ranking = summary.studentRanking || [];
+    let cardsHTML = '';
+
+    ranking.forEach((student, idx) => {
+        const results = byStudent[student.name] || [];
+        const gradeInfo = getGradeLocal(student.average);
+        
+        cardsHTML += `
+        <div class="result-card" style="border-left: 3px solid ${gradeInfo.color};">
+            <div class="result-header">
+                <div>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">Rank #${idx + 1}</div>
+                    <div style="font-size:1.1rem; font-weight:700;">${student.name}</div>
+                </div>
+                <div style="text-align:right;">
+                    <div class="result-score" style="color:${gradeInfo.color};">${student.average}</div>
+                    <div class="result-grade" style="background:${gradeInfo.color}20; color:${gradeInfo.color}; margin-top:4px;">
+                        ${gradeInfo.grade}
+                    </div>
+                </div>
+            </div>
+            
+            ${results.map((r, rIdx) => `
+                <div style="margin-bottom:12px; padding:12px; background:rgba(0,0,0,0.15); border-radius:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:0.8rem; color:var(--text-muted);">Q${rIdx + 1}</span>
+                        <span style="font-size:1.1rem; font-weight:800; color:${getGradeLocal(r.totalScore).color};">${r.totalScore}/100</span>
+                    </div>
+                    ${Object.entries(r.ruleScores || {}).map(([ruleId, ruleData]) => `
+                        <div class="rule-bar">
+                            <div class="rule-label">
+                                <span>${ruleData.comment || ruleId}</span>
+                                <span>${ruleData.score}/100</span>
+                            </div>
+                            <div class="rule-track">
+                                <div class="rule-fill" style="width:${ruleData.score}%; background:${ruleData.score >= 70 ? '#10b981' : ruleData.score >= 50 ? '#f59e0b' : '#ef4444'};"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                    ${r.aiAnalysis ? `
+                        <div class="ai-feedback">
+                            <div style="font-size:0.75rem; color:var(--accent-light); font-weight:700; margin-bottom:6px;">🤖 AI Analysis</div>
+                            ${r.aiAnalysis.feedback || ''}
+                            ${r.aiAnalysis.strengths?.length ? `<div style="margin-top:6px; color:#10b981;">✓ ${r.aiAnalysis.strengths.join(' • ')}</div>` : ''}
+                            ${r.aiAnalysis.weaknesses?.length ? `<div style="margin-top:4px; color:#ef4444;">✗ ${r.aiAnalysis.weaknesses.join(' • ')}</div>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('')}
+        </div>`;
+    });
+
+    document.getElementById('resultsGrid').innerHTML = cardsHTML;
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ═══════════════════════════════════════════
+// Export
+// ═══════════════════════════════════════════
+function exportCSV() {
+    if (!analysisResults) {
+        showToast('No results to export. Run analysis first.', 'error');
+        return;
+    }
+
+    const headers = ['Student ID', 'Student Name', 'Question', 'Score', 'Grade'];
+    const rows = analysisResults.results.map(r => [
+        r.studentId,
+        r.studentName,
+        `"${r.question.replace(/"/g, '""')}"`,
+        r.totalScore,
+        r.grade || r.gradeLabel
+    ]);
+
+    const csv = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `student_analysis_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('Results exported successfully', 'success');
+}
+
+// ═══════════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════════
+function showLoading(text) {
+    document.getElementById('loadingText').textContent = text;
+    document.getElementById('loadingOverlay').classList.add('visible');
+    animateProgress();
+}
+
+function hideLoading() {
+    document.getElementById('loadingOverlay').classList.remove('visible');
+    document.getElementById('progressBar').style.width = '0%';
+}
+
+let progressInterval;
+function animateProgress() {
+    let progress = 0;
+    clearInterval(progressInterval);
+    progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        document.getElementById('progressBar').style.width = progress + '%';
+    }, 300);
+}
+
+function showToast(text, type) {
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toastText');
+    const toastIcon = document.getElementById('toastIcon');
+    
+    toast.className = `toast toast-${type} visible`;
+    toastText.textContent = text;
+    toastIcon.textContent = type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ';
+    
+    setTimeout(() => toast.classList.remove('visible'), 4000);
+}
+</script>
+</body>
+</html>

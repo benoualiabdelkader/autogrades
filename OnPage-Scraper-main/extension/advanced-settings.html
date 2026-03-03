@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>الإعدادات المتقدمة - AutoGrader Scraper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 900px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+            font-size: 28px;
+        }
+
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 14px;
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 30px;
+            border-bottom: 2px solid #e0e0e0;
+        }
+
+        .tab {
+            padding: 12px 24px;
+            cursor: pointer;
+            border: none;
+            background: none;
+            color: #666;
+            font-size: 15px;
+            font-weight: 500;
+            transition: all 0.3s;
+            border-bottom: 3px solid transparent;
+        }
+
+        .tab:hover {
+            color: #667eea;
+        }
+
+        .tab.active {
+            color: #667eea;
+            border-bottom-color: #667eea;
+        }
+
+        .tab-content {
+            display: none;
+        }
+
+        .tab-content.active {
+            display: block;
+            animation: fadeIn 0.4s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section {
+            margin-bottom: 30px;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+        }
+
+        .section-title {
+            font-size: 18px;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .section-title::before {
+            content: '';
+            width: 4px;
+            height: 20px;
+            background: #667eea;
+            border-radius: 2px;
+        }
+
+        .setting-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 15px 0;
+            border-bottom: 1px solid #e0e0e0;
+        }
+
+        .setting-row:last-child {
+            border-bottom: none;
+        }
+
+        .setting-label {
+            flex: 1;
+        }
+
+        .setting-label h4 {
+            color: #333;
+            margin-bottom: 5px;
+            font-size: 15px;
+        }
+
+        .setting-label p {
+            color: #666;
+            font-size: 13px;
+        }
+
+        .setting-control {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        input[type="number"],
+        input[type="text"],
+        select {
+            padding: 8px 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 6px;
+            font-size: 14px;
+            width: 120px;
+            transition: border-color 0.3s;
+        }
+
+        input[type="number"]:focus,
+        input[type="text"]:focus,
+        select:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .toggle {
+            position: relative;
+            width: 50px;
+            height: 26px;
+            background: #ccc;
+            border-radius: 13px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        .toggle.active {
+            background: #667eea;
+        }
+
+        .toggle::after {
+            content: '';
+            position: absolute;
+            top: 3px;
+            left: 3px;
+            width: 20px;
+            height: 20px;
+            background: white;
+            border-radius: 50%;
+            transition: transform 0.3s;
+        }
+
+        .toggle.active::after {
+            transform: translateX(24px);
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .btn-secondary {
+            background: #e0e0e0;
+            color: #333;
+        }
+
+        .btn-secondary:hover {
+            background: #d0d0d0;
+        }
+
+        .btn-danger {
+            background: #ff4757;
+            color: white;
+        }
+
+        .btn-danger:hover {
+            background: #ee2d3b;
+        }
+
+        .actions {
+            display: flex;
+            gap: 15px;
+            justify-content: flex-end;
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 2px solid #e0e0e0;
+        }
+
+        .info-box {
+            background: #e8f4fd;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+        }
+
+        .info-box.warning {
+            background: #fff3cd;
+            border-left-color: #ffc107;
+        }
+
+        .info-box.success {
+            background: #d4edda;
+            border-left-color: #28a745;
+        }
+
+        .info-box p {
+            color: #333;
+            font-size: 14px;
+            line-height: 1.6;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin-top: 20px;
+        }
+
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .stat-card h3 {
+            font-size: 14px;
+            color: #666;
+            margin-bottom: 8px;
+        }
+
+        .stat-card .value {
+            font-size: 24px;
+            color: #667eea;
+            font-weight: bold;
+        }
+
+        .user-agent-list {
+            max-height: 200px;
+            overflow-y: auto;
+            background: white;
+            padding: 10px;
+            border-radius: 6px;
+            border: 2px solid #e0e0e0;
+        }
+
+        .user-agent-item {
+            padding: 8px;
+            margin-bottom: 5px;
+            background: #f8f9fa;
+            border-radius: 4px;
+            font-size: 12px;
+            font-family: monospace;
+        }
+
+        .toast {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: #28a745;
+            color: white;
+            padding: 15px 30px;
+            border-radius: 8px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            z-index: 1000;
+            display: none;
+            animation: slideDown 0.3s;
+        }
+
+        @keyframes slideDown {
+            from { transform: translateX(-50%) translateY(-100%); }
+            to { transform: translateX(-50%) translateY(0); }
+        }
+
+        .toast.show {
+            display: block;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 12px;
+            border-radius: 12px;
+            font-size: 12px;
+            font-weight: 500;
+        }
+
+        .badge.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .badge.warning {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .badge.danger {
+            background: #f8d7da;
+            color: #721c24;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>⚙️ الإعدادات المتقدمة</h1>
+        <p class="subtitle">قم بتخصيص سلوك أداة الاستخراج حسب احتياجاتك</p>
+
+        <div class="tabs">
+            <button class="tab active" data-tab="data">📊 أنواع البيانات</button>
+            <button class="tab" data-tab="performance">⚡ الأداء</button>
+            <button class="tab" data-tab="security">🔒 الأمان</button>
+            <button class="tab" data-tab="advanced">🛠️ متقدم</button>
+            <button class="tab" data-tab="stats">📈 الإحصائيات</button>
+        </div>
+
+        <!-- Data Types Tab -->
+        <div class="tab-content active" id="data-tab">
+            <div class="info-box">
+                <p><strong>📌 أنواع البيانات المدعومة:</strong> حدد أنواع البيانات التي تريد استخراجها من الصفحات</p>
+            </div>
+
+            <div class="section">
+                <div class="section-title">أنواع البيانات</div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>📝 النصوص</h4>
+                        <p>استخراج العناوين، الفقرات، والقوائم</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="dataTypes.text"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>🖼️ الصور</h4>
+                        <p>استخراج الصور مع معلوماتها (URL, Alt, Width, Height)</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="dataTypes.images"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>🔗 الروابط</h4>
+                        <p>استخراج الروابط الداخلية والخارجية</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="dataTypes.links"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>📊 الجداول</h4>
+                        <p>استخراج البيانات من جداول HTML</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="dataTypes.tables"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>📁 الملفات</h4>
+                        <p>استخراج روابط الملفات (PDF, CSV, Excel, etc.)</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="dataTypes.files"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Performance Tab -->
+        <div class="tab-content" id="performance-tab">
+            <div class="info-box warning">
+                <p><strong>⚠️ تنبيه:</strong> الإعدادات المنخفضة قد تبطئ الأداء، بينما الإعدادات العالية قد تسبب الحظر</p>
+            </div>
+
+            <div class="section">
+                <div class="section-title">التحكم في السرعة (Rate Limiting)</div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>تفعيل Rate Limiting</h4>
+                        <p>منع الإفراط في الطلبات</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="rateLimiting.enabled"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>الطلبات بالثانية</h4>
+                        <p>عدد الطلبات المسموح بها كل ثانية</p>
+                    </div>
+                    <div class="setting-control">
+                        <input type="number" min="1" max="10" value="2" data-setting="rateLimiting.requestsPerSecond">
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>التأخير بين الطلبات (ms)</h4>
+                        <p>المدة الزمنية بين كل طلب وآخر</p>
+                    </div>
+                    <div class="setting-control">
+                        <input type="number" min="100" max="5000" step="100" value="500" data-setting="rateLimiting.delayBetweenRequests">
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>العمليات المتزامنة</h4>
+                        <p>عدد العمليات التي تعمل في نفس الوقت</p>
+                    </div>
+                    <div class="setting-control">
+                        <input type="number" min="1" max="10" value="3" data-setting="rateLimiting.maxConcurrent">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">الأداء والتخزين المؤقت</div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>تفعيل Multi-Threading</h4>
+                        <p>معالجة متعددة الخيوط لتحسين الأداء</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="performance.multiThreading"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>عدد Workers</h4>
+                        <p>عدد الخيوط للمعالجة المتوازية</p>
+                    </div>
+                    <div class="setting-control">
+                        <input type="number" min="1" max="8" value="4" data-setting="performance.maxWorkers">
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>تفعيل Cache</h4>
+                        <p>حفظ البيانات مؤقتاً لتحسين السرعة</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="performance.cacheEnabled"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>حجم Cache (MB)</h4>
+                        <p>الحد الأقصى للتخزين المؤقت</p>
+                    </div>
+                    <div class="setting-control">
+                        <input type="number" min="10" max="500" step="10" value="100" data-setting="performance.cacheSize">
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Security Tab -->
+        <div class="tab-content" id="security-tab">
+            <div class="section">
+                <div class="section-title">User-Agent Rotation</div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>تفعيل تدوير User-Agent</h4>
+                        <p>تغيير هوية المتصفح تلقائياً</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle" data-setting="userAgentRotation.enabled"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>فترة التدوير</h4>
+                        <p>تغيير User-Agent كل X طلب</p>
+                    </div>
+                    <div class="setting-control">
+                        <input type="number" min="1" max="100" value="10" data-setting="userAgentRotation.rotationInterval">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">مكافحة الكشف</div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>تعشية التوقيتات</h4>
+                        <p>جعل التوقيتات عشوائية لتبدو بشرية</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="antiDetection.randomizeTimings"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>محاكاة السلوك البشري</h4>
+                        <p>حركة الماوس والتمرير الطبيعي</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="antiDetection.simulateHumanBehavior"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>تجنب Captcha</h4>
+                        <p>محاولة تجنب صفحات Captcha</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="antiDetection.avoidCaptcha"></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">إدارة الجلسات</div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>حفظ الجلسات</h4>
+                        <p>حفظ حالة تسجيل الدخول والكوكيز</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="sessionManagement.saveSessions"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>حفظ حالة تسجيل الدخول</h4>
+                        <p>الاحتفاظ بحالة تسجيل الدخول</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="sessionManagement.saveLoginState"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Tab -->
+        <div class="tab-content" id="advanced-tab">
+            <div class="info-box warning">
+                <p><strong>⚠️ تحذير:</strong> هذه الإعدادات للمستخدمين المتقدمين فقط</p>
+            </div>
+
+            <div class="section">
+                <div class="section-title">القانونية والأخلاقيات</div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>احترام شروط الخدمة</h4>
+                        <p>التحقق من شروط المواقع قبل الاستخراج</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="legal.respectTermsOfService"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>فحص robots.txt</h4>
+                        <p>احترام ملف robots.txt</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="legal.checkRobotsTxt"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>تحذير من المواقع المحظورة</h4>
+                        <p>إظهار تحذير عند محاولة سحب بيانات من مواقع محمية</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="legal.warnOnRestrictedSites"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>الحد الأقصى للصفحات لكل موقع</h4>
+                        <p>منع الاستخراج المفرط</p>
+                    </div>
+                    <div class="setting-control">
+                        <input type="number" min="10" max="10000" step="10" value="1000" data-setting="legal.maxPagesPerSite">
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">التصدير والحفظ</div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>صيغة التصدير الافتراضية</h4>
+                        <p>الصيغة المفضلة عند التصدير</p>
+                    </div>
+                    <div class="setting-control">
+                        <select data-setting="export.format">
+                            <option value="json">JSON</option>
+                            <option value="csv">CSV</option>
+                            <option value="xml">XML</option>
+                            <option value="excel">Excel</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>تضمين البيانات الوصفية</h4>
+                        <p>إضافة معلومات إضافية عند التصدير</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="export.includeMetadata"></div>
+                    </div>
+                </div>
+                <div class="setting-row">
+                    <div class="setting-label">
+                        <h4>الحفظ التلقائي</h4>
+                        <p>حفظ البيانات تلقائياً أثناء الاستخراج</p>
+                    </div>
+                    <div class="setting-control">
+                        <div class="toggle active" data-setting="export.autoSave"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Tab -->
+        <div class="tab-content" id="stats-tab">
+            <div class="section">
+                <div class="section-title">إحصائيات الأداء</div>
+                <div class="stats-grid" id="performance-stats">
+                    <div class="stat-card">
+                        <h3>الطلبات الكلية</h3>
+                        <div class="value" id="total-requests">0</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>متوسط وقت الاستجابة</h3>
+                        <div class="value" id="avg-response">0 ms</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>معدل Cache Hit</h3>
+                        <div class="value" id="cache-hit-rate">0%</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>الأخطاء</h3>
+                        <div class="value" id="total-errors">0</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="section">
+                <div class="section-title">الذاكرة المستخدمة</div>
+                <div class="stats-grid" id="memory-stats">
+                    <div class="stat-card">
+                        <h3>المستخدمة</h3>
+                        <div class="value" id="memory-used">0 MB</div>
+                    </div>
+                    <div class="stat-card">
+                        <h3>الإجمالية</h3>
+                        <div class="value" id="memory-total">0 MB</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="actions">
+                <button class="btn btn-secondary" id="clear-stats">مسح الإحصائيات</button>
+                <button class="btn btn-primary" id="refresh-stats">تحديث</button>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="actions">
+            <button class="btn btn-danger" id="reset-btn">إعادة تعيين الافتراضي</button>
+            <button class="btn btn-secondary" id="export-settings-btn">تصدير الإعدادات</button>
+            <button class="btn btn-primary" id="save-btn">💾 حفظ الإعدادات</button>
+        </div>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script src="advanced-settings-ui.js"></script>
+</body>
+</html>

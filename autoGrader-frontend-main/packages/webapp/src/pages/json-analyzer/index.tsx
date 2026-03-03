@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
@@ -19,10 +19,13 @@ import {
     faEye,
     faFileUpload,
     faMagic,
-    faCog
+    faCog,
+    faGraduationCap,
+    faHistory
 } from "@fortawesome/free-solid-svg-icons";
+import { PageHeader, Card, Button, Alert, Badge } from "@/components/ui/UnifiedUI";
 
-type AnalysisType = 'structure' | 'validation' | 'quality' | 'security' | 'performance' | 'schema' | 'comparison' | 'custom';
+type AnalysisType = 'structure' | 'validation' | 'quality' | 'security' | 'performance' | 'schema' | 'comparison' | 'grading' | 'custom';
 
 interface AnalysisResult {
     success: boolean;
@@ -45,17 +48,19 @@ export default function JsonAnalyzer() {
     const [result, setResult] = useState<AnalysisResult | null>(null);
     const [error, setError] = useState<string | null>(null);
     const [showRawJson, setShowRawJson] = useState(false);
+    const [analysisHistory, setAnalysisHistory] = useState<AnalysisResult[]>([]);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
     const analysisTypes = [
-        { id: 'structure', name: 'تحليل البنية', icon: faCodeBranch, color: 'blue' },
-        { id: 'validation', name: 'التحقق من الصحة', icon: faClipboardCheck, color: 'green' },
-        { id: 'quality', name: 'جودة البيانات', icon: faChartBar, color: 'purple' },
-        { id: 'security', name: 'الأمان', icon: faShieldAlt, color: 'red' },
-        { id: 'performance', name: 'الأداء', icon: faTachometerAlt, color: 'yellow' },
-        { id: 'schema', name: 'المخطط', icon: faFileCode, color: 'cyan' },
-        { id: 'comparison', name: 'الأنماط والرؤى', icon: faMagic, color: 'pink' },
-        { id: 'custom', name: 'تحليل مخصص', icon: faCog, color: 'orange' }
+        { id: 'structure', name: 'تحليل البنية', icon: faCodeBranch, color: 'blue', desc: 'هيكل وتنظيم البيانات' },
+        { id: 'validation', name: 'التحقق من الصحة', icon: faClipboardCheck, color: 'green', desc: 'سلامة واتساق البيانات' },
+        { id: 'quality', name: 'جودة البيانات', icon: faChartBar, color: 'purple', desc: 'دقة واكتمال وموثوقية' },
+        { id: 'security', name: 'الأمان والخصوصية', icon: faShieldAlt, color: 'red', desc: 'PII وFERPA والحماية' },
+        { id: 'performance', name: 'الأداء', icon: faTachometerAlt, color: 'yellow', desc: 'كفاءة الحجم والاستعلام' },
+        { id: 'schema', name: 'المخطط', icon: faFileCode, color: 'cyan', desc: 'أنواع البيانات والعلاقات' },
+        { id: 'comparison', name: 'الأنماط والرؤى', icon: faMagic, color: 'pink', desc: 'اتجاهات وارتباطات وتوقعات' },
+        { id: 'grading', name: 'تحليل الدرجات', icon: faGraduationCap, color: 'emerald', desc: 'توزيع وأداء الطلاب' },
+        { id: 'custom', name: 'تحليل مخصص', icon: faCog, color: 'orange', desc: 'تعليمات تحليل مخصصة' }
     ];
 
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -105,6 +110,7 @@ export default function JsonAnalyzer() {
 
             const data: AnalysisResult = await response.json();
             setResult(data);
+            setAnalysisHistory(prev => [data, ...prev].slice(0, 10));
         } catch (err: any) {
             setError(err.message || "حدث خطأ أثناء التحليل");
         } finally {
@@ -146,25 +152,22 @@ export default function JsonAnalyzer() {
     };
 
     return (
-        <div className="flex min-h-screen bg-background text-foreground font-sans">
+        <div className="flex min-h-screen bg-background text-foreground">
             <Sidebar />
 
-            <main className="flex-1 ml-64 p-8 lg:p-12">
-                <header className="mb-8">
-                    <h1 className="text-4xl font-bold premium-text-gradient mb-2">
-                        <FontAwesomeIcon icon={faMagic as any} className="mr-3" />
-                        محلل JSON بالذكاء الاصطناعي
-                    </h1>
-                    <p className="text-muted-foreground">
-                        تحليل متقدم لملفات JSON باستخدام الذكاء الاصطناعي - البنية، الجودة، الأمان، والأداء
-                    </p>
-                </header>
+            <main className="flex-1 ml-64 p-8 lg:p-12 page-transition">
+                <PageHeader
+                    icon={faMagic as any}
+                    title="محلل JSON بالذكاء الاصطناعي"
+                    subtitle="تحليل متقدم لملفات JSON باستخدام الذكاء الاصطناعي - البنية، الجودة، الأمان، والأداء"
+                    gradient="accent"
+                />
 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                     {/* Input Section */}
                     <div className="space-y-6">
                         {/* File Upload */}
-                        <section className="glass-card p-6">
+                        <Card>
                             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                                 <FontAwesomeIcon icon={faFileCode as any} className="text-primary" />
                                 1. بيانات JSON
@@ -228,35 +231,35 @@ export default function JsonAnalyzer() {
                                     />
                                 </div>
                             )}
-                        </section>
+                        </Card>
 
                         {/* Analysis Type Selection */}
-                        <section className="glass-card p-6">
+                        <Card>
                             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                                 <FontAwesomeIcon icon={faChartBar as any} className="text-primary" />
                                 2. نوع التحليل
                             </h2>
 
-                            <div className="grid grid-cols-2 gap-3">
+                            <div className="grid grid-cols-3 gap-3">
                                 {analysisTypes.map((type) => (
                                     <button
                                         key={type.id}
                                         onClick={() => setAnalysisType(type.id as AnalysisType)}
-                                        className={`p-3 rounded-xl border transition-all text-left ${
-                                            analysisType === type.id
-                                                ? `bg-${type.color}-500/20 border-${type.color}-500/50 text-${type.color}-500`
-                                                : 'bg-white/5 border-white/10 hover:bg-white/10'
-                                        }`}
+                                        className={`p-3 rounded-xl border transition-all text-left ${analysisType === type.id
+                                            ? `bg-${type.color}-500/20 border-${type.color}-500/50 text-${type.color}-500`
+                                            : 'bg-white/5 border-white/10 hover:bg-white/10'
+                                            }`}
                                     >
                                         <FontAwesomeIcon icon={type.icon as any} className="mb-2" />
                                         <div className="text-xs font-bold">{type.name}</div>
+                                        <div className="text-[10px] text-muted-foreground mt-1 opacity-70">{type.desc}</div>
                                     </button>
                                 ))}
                             </div>
-                        </section>
+                        </Card>
 
                         {/* Additional Options */}
-                        <section className="glass-card p-6">
+                        <Card>
                             <h2 className="text-lg font-bold mb-4 flex items-center gap-2">
                                 <FontAwesomeIcon icon={faCog as any} className="text-primary" />
                                 3. خيارات إضافية
@@ -288,50 +291,37 @@ export default function JsonAnalyzer() {
                                 </div>
                             )}
 
-                            <button
+                            <Button
                                 onClick={runAnalysis}
                                 disabled={isAnalyzing || !jsonInput}
-                                className="w-full mt-4 premium-gradient p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-blue-500/20 transition-all disabled:opacity-50"
+                                variant="primary"
+                                size="lg"
+                                icon={(isAnalyzing ? faSpinner : faPlay) as any}
+                                loading={isAnalyzing}
+                                className="w-full mt-4"
                             >
-                                {isAnalyzing ? (
-                                    <>
-                                        <FontAwesomeIcon icon={faSpinner as any} spin />
-                                        جاري التحليل...
-                                    </>
-                                ) : (
-                                    <>
-                                        <FontAwesomeIcon icon={faPlay as any} />
-                                        تشغيل التحليل
-                                    </>
-                                )}
-                            </button>
-                        </section>
+                                {isAnalyzing ? "جاري التحليل..." : "تشغيل التحليل"}
+                            </Button>
+                        </Card>
                     </div>
 
                     {/* Results Section */}
                     <div className="space-y-6">
-                        <section className="glass-card p-6">
+                        <Card>
                             <div className="flex items-center justify-between mb-4">
                                 <h2 className="text-lg font-bold flex items-center gap-2">
                                     <FontAwesomeIcon icon={faCheckCircle as any} className="text-primary" />
                                     نتائج التحليل
                                 </h2>
                                 {result && (
-                                    <button
-                                        onClick={downloadResult}
-                                        className="text-xs bg-primary/10 text-primary px-3 py-2 rounded-lg border border-primary/20 hover:bg-primary/20 transition-all"
-                                    >
-                                        <FontAwesomeIcon icon={faDownload as any} className="mr-1" />
+                                    <Button onClick={downloadResult} variant="ghost" size="sm" icon={faDownload as any}>
                                         تحميل
-                                    </button>
+                                    </Button>
                                 )}
                             </div>
 
                             {error && (
-                                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl flex items-center gap-3 text-red-500 text-sm">
-                                    <FontAwesomeIcon icon={faExclamationTriangle as any} />
-                                    {error}
-                                </div>
+                                <Alert variant="error">{error}</Alert>
                             )}
 
                             {isAnalyzing && (
@@ -349,29 +339,87 @@ export default function JsonAnalyzer() {
                             )}
 
                             {result && !isAnalyzing && (
-                                <div className="space-y-4 max-h-[600px] overflow-y-auto">
+                                <div className="space-y-4 max-h-[700px] overflow-y-auto">
                                     {/* Score Display */}
                                     {result.analysis && Object.keys(result.analysis).some(key => key.includes('score')) && (
                                         <div className="grid grid-cols-2 gap-3">
                                             {Object.entries(result.analysis)
-                                                .filter(([key]) => key.includes('score'))
+                                                .filter(([key, value]) => key.includes('score') && typeof value === 'number')
                                                 .map(([key, value]) => (
                                                     <div key={key} className={`p-4 rounded-xl border ${getScoreBg(value as number)}`}>
                                                         <div className="text-xs text-muted-foreground mb-1">
                                                             {key.replace(/_/g, ' ').replace('score', 'النتيجة')}
                                                         </div>
                                                         <div className={`text-2xl font-bold ${getScoreColor(value as number)}`}>
-                                                            {value}/100
+                                                            {String(value)}/100
+                                                        </div>
+                                                        <div className="mt-2 h-1.5 rounded-full bg-white/10">
+                                                            <div className={`h-full rounded-full transition-all ${(value as number) >= 80 ? 'bg-green-500' : (value as number) >= 60 ? 'bg-yellow-500' : (value as number) >= 40 ? 'bg-orange-500' : 'bg-red-500'}`} style={{ width: `${Number(value)}%` }} />
                                                         </div>
                                                     </div>
                                                 ))}
                                         </div>
                                     )}
 
+                                    {/* Quick Summary if present */}
+                                    {result.analysis?.summary && (
+                                        <div className="p-4 bg-primary/10 border border-primary/20 rounded-xl">
+                                            <div className="text-sm font-bold text-primary mb-1">ملخص التحليل</div>
+                                            <p className="text-sm text-slate-200">{result.analysis.summary}</p>
+                                        </div>
+                                    )}
+
                                     {/* Analysis Details */}
                                     <div className="space-y-3">
                                         {Object.entries(result.analysis).map(([key, value]) => {
-                                            if (key.includes('score')) return null;
+                                            if (key.includes('score') && typeof value === 'number') return null;
+                                            if (key === 'summary') return null;
+
+                                            const renderValue = (val: unknown, depth = 0): React.ReactNode => {
+                                                if (val === null || val === undefined) return <span className="text-slate-500">-</span>;
+                                                if (typeof val === 'boolean') return <span className={val ? 'text-green-400' : 'text-red-400'}>{val ? '✓ نعم' : '✗ لا'}</span>;
+                                                if (typeof val === 'number') return <span className="font-mono text-cyan-300">{val}</span>;
+                                                if (typeof val === 'string') {
+                                                    if (val === 'low' || val === 'pass' || val === 'compliant' || val === 'excellent' || val === 'ready') return <span className="text-green-400 font-semibold">{val}</span>;
+                                                    if (val === 'medium' || val === 'warning' || val === 'needs_review' || val === 'good' || val === 'fair' || val === 'needs_work') return <span className="text-yellow-400 font-semibold">{val}</span>;
+                                                    if (val === 'high' || val === 'fail' || val === 'non_compliant' || val === 'poor' || val === 'critical' || val === 'not_suitable') return <span className="text-red-400 font-semibold">{val}</span>;
+                                                    return <span>{val}</span>;
+                                                }
+                                                if (Array.isArray(val)) {
+                                                    if (val.length === 0) return <span className="text-slate-500">فارغ</span>;
+                                                    return (
+                                                        <ul className="space-y-1">
+                                                            {val.map((item, idx) => (
+                                                                <li key={idx} className="flex items-start gap-2">
+                                                                    <span className="text-primary mt-0.5 shrink-0">•</span>
+                                                                    <span className="text-sm">{typeof item === 'object' && item !== null
+                                                                        ? Object.entries(item).map(([k, v]) => (
+                                                                            <span key={k} className="mr-2">
+                                                                                <span className="text-slate-400 text-xs">{k.replace(/_/g, ' ')}:</span>{' '}
+                                                                                {renderValue(v, depth + 1)}
+                                                                            </span>
+                                                                        ))
+                                                                        : String(item)
+                                                                    }</span>
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    );
+                                                }
+                                                if (typeof val === 'object') {
+                                                    return (
+                                                        <div className={`space-y-1 ${depth > 0 ? 'ml-3 pl-3 border-l border-white/10' : ''}`}>
+                                                            {Object.entries(val as Record<string, unknown>).map(([k, v]) => (
+                                                                <div key={k} className="flex items-start gap-2 text-sm">
+                                                                    <span className="text-slate-400 text-xs shrink-0 min-w-[80px]">{k.replace(/_/g, ' ')}:</span>
+                                                                    <span>{renderValue(v, depth + 1)}</span>
+                                                                </div>
+                                                            ))}
+                                                        </div>
+                                                    );
+                                                }
+                                                return <span>{String(val)}</span>;
+                                            };
 
                                             return (
                                                 <div key={key} className="p-4 bg-white/5 rounded-xl border border-white/10">
@@ -379,22 +427,7 @@ export default function JsonAnalyzer() {
                                                         {key.replace(/_/g, ' ').toUpperCase()}
                                                     </div>
                                                     <div className="text-sm text-muted-foreground">
-                                                        {Array.isArray(value) ? (
-                                                            <ul className="space-y-1">
-                                                                {value.map((item, idx) => (
-                                                                    <li key={idx} className="flex items-start gap-2">
-                                                                        <span className="text-primary">•</span>
-                                                                        <span>{typeof item === 'object' ? JSON.stringify(item) : item}</span>
-                                                                    </li>
-                                                                ))}
-                                                            </ul>
-                                                        ) : typeof value === 'object' ? (
-                                                            <pre className="text-xs font-mono overflow-x-auto">
-                                                                {JSON.stringify(value, null, 2)}
-                                                            </pre>
-                                                        ) : (
-                                                            <p>{String(value)}</p>
-                                                        )}
+                                                        {renderValue(value)}
                                                     </div>
                                                 </div>
                                             );
@@ -406,17 +439,41 @@ export default function JsonAnalyzer() {
                                         <div className="p-3 bg-black/40 rounded-xl border border-white/10">
                                             <div className="text-xs text-muted-foreground space-y-1">
                                                 <div>النموذج: {result.metadata.model}</div>
-                                                <div>حجم البيانات: {result.metadata.dataSize} بايت</div>
+                                                <div>نوع التحليل: {result.metadata.analysisType}</div>
+                                                <div>حجم البيانات: {(result.metadata.dataSize / 1024).toFixed(1)} كيلوبايت</div>
                                                 <div>الوقت: {new Date(result.metadata.timestamp).toLocaleString('ar')}</div>
                                             </div>
                                         </div>
                                     )}
                                 </div>
                             )}
-                        </section>
+
+                            {/* Analysis History */}
+                            {analysisHistory.length > 1 && !isAnalyzing && (
+                                <div className="mt-4 pt-4 border-t border-white/10">
+                                    <div className="flex items-center gap-2 mb-2">
+                                        <FontAwesomeIcon icon={faHistory as any} className="text-muted-foreground text-xs" />
+                                        <span className="text-xs text-muted-foreground">سجل التحليلات ({analysisHistory.length})</span>
+                                    </div>
+                                    <div className="space-y-1">
+                                        {analysisHistory.slice(1).map((hist, idx) => (
+                                            <button
+                                                key={idx}
+                                                onClick={() => setResult(hist)}
+                                                className="w-full text-left p-2 bg-white/5 rounded-lg border border-white/10 hover:bg-white/10 transition-all text-xs"
+                                            >
+                                                <span className="text-primary font-semibold">{hist.metadata.analysisType}</span>
+                                                <span className="text-muted-foreground mr-2"> — {new Date(hist.metadata.timestamp).toLocaleTimeString('ar')}</span>
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </Card>
                     </div>
                 </div>
             </main>
         </div>
     );
 }
+

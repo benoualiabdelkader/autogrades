@@ -1,12 +1,57 @@
 /**
  * API Endpoint لاستقبال البيانات من Extension
  * يستقبل البيانات المستخرجة ويخزنها لعرضها في Dashboard
+ * 
+ * Fix: Uses globalThis to persist data across Next.js HMR reloads
+ * Also writes to a .json file as backup for full server restarts
  */
 
 import type { NextApiRequest, NextApiResponse } from 'next';
+import fs from 'fs';
+import path from 'path';
 
-// تخزين آخر payload من الإضافة (في الذاكرة) لعرضه في الداشبورد
-let lastReceivedPayload: Record<string, unknown> | null = null;
+// ─── Persist across HMR (Hot Module Replacement) ───
+// In Next.js dev mode, module-level variables get reset on file changes.
+// globalThis survives HMR reloads (same pattern as Prisma client).
+const globalForStorage = globalThis as typeof globalThis & {
+    __scraperPayload?: Record<string, unknown> | null;
+};
+
+// File-based backup for full server restarts
+const BACKUP_FILE = path.join(process.cwd(), '.scraper-data-cache.json');
+
+function getPayload(): Record<string, unknown> | null {
+    // 1. Try globalThis (fastest, survives HMR)
+    if (globalForStorage.__scraperPayload) {
+        return globalForStorage.__scraperPayload;
+    }
+    // 2. Try file backup (survives server restart)
+    try {
+        if (fs.existsSync(BACKUP_FILE)) {
+            const raw = fs.readFileSync(BACKUP_FILE, 'utf-8');
+            const parsed = JSON.parse(raw);
+            // Cache in globalThis for next time
+            globalForStorage.__scraperPayload = parsed;
+            return parsed;
+        }
+    } catch (e) {
+        console.warn('Could not read scraper data cache:', e);
+    }
+    return null;
+}
+
+function setPayload(data: Record<string, unknown> | null): void {
+    // 1. Store in globalThis (survives HMR)
+    globalForStorage.__scraperPayload = data;
+    // 2. Write file backup (survives server restart)
+    try {
+        if (data) {
+            fs.writeFileSync(BACKUP_FILE, JSON.stringify(data), 'utf-8');
+        }
+    } catch (e) {
+        console.warn('Could not write scraper data cache:', e);
+    }
+}
 
 export const config = {
     api: {
@@ -18,7 +63,7 @@ export const config = {
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
     res.setHeader('Access-Control-Allow-Origin', '*');
-    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET');
+    res.setHeader('Access-Control-Allow-Methods', 'POST, OPTIONS, GET, DELETE');
     res.setHeader('Access-Control-Allow-Headers', 'Content-Type, X-Source');
 
     if (req.method === 'OPTIONS') {
@@ -26,13 +71,22 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     }
 
     if (req.method === 'GET') {
+        const payload = getPayload();
         return res.status(200).json({
             success: true,
-            payload: lastReceivedPayload,
-            message: lastReceivedPayload
+            payload: payload,
+            hasData: !!payload,
+            message: payload
                 ? 'Last extension payload'
                 : 'No data received yet from extension'
         });
+    }
+
+    // DELETE - clear stored data
+    if (req.method === 'DELETE') {
+        setPayload(null);
+        try { fs.unlinkSync(BACKUP_FILE); } catch {}
+        return res.status(200).json({ success: true, message: 'Data cleared' });
     }
 
     if (req.method !== 'POST') {
@@ -49,10 +103,20 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             });
         }
 
-        const items = Array.isArray(data.data) ? data.data : [];
-        lastReceivedPayload = {
-            ...data,
-            data: data.data,
+        // Normalize: support both {data: [...]} and direct array formats
+        let items: any[] = [];
+        if (Array.isArray(data.data)) {
+            items = data.data;
+        } else if (Array.isArray(data)) {
+            items = data;
+        }
+
+        const payload: Record<string, unknown> = {
+            source: data.source || 'web-scraper',
+            url: data.url || '',
+            pageTitle: data.pageTitle || '',
+            timestamp: data.timestamp || new Date().toISOString(),
+            data: items,
             statistics: data.statistics || {
                 totalItems: items.length,
                 totalFields: data.statistics?.totalFields ?? 0,
@@ -61,11 +125,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
             receivedAt: new Date().toISOString()
         };
 
+        setPayload(payload);
+
         console.log('📥 Received data from scraper extension:', {
             source: data.source,
             url: data.url,
             totalItems: items.length,
-            timestamp: data.timestamp
+            timestamp: data.timestamp,
+            storedIn: 'globalThis + file'
         });
 
         return res.status(200).json({

@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>اختبار الميزات المتقدمة - AutoGrader Scraper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 15px;
+            padding: 30px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+        }
+
+        h1 {
+            color: #333;
+            margin-bottom: 10px;
+        }
+
+        .test-section {
+            margin: 30px 0;
+            padding: 20px;
+            background: #f8f9fa;
+            border-radius: 10px;
+            border-right: 4px solid #667eea;
+        }
+
+        .test-section h2 {
+            color: #667eea;
+            margin-bottom: 15px;
+            font-size: 20px;
+        }
+
+        .btn {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 8px;
+            font-size: 15px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.3s;
+            margin: 5px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(102, 126, 234, 0.4);
+        }
+
+        .result {
+            margin-top: 15px;
+            padding: 15px;
+            background: white;
+            border-radius: 8px;
+            border: 2px solid #e0e0e0;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .result pre {
+            font-size: 12px;
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-break: break-all;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 5px 12px;
+            border-radius: 12px;
+            font-size: 13px;
+            margin: 5px 0;
+        }
+
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+        }
+
+        .status.info {
+            background: #d1ecf1;
+            color: #0c5460;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🧪 اختبار الميزات المتقدمة</h1>
+        <p style="color: #666; margin-bottom: 20px;">اختبر جميع الميزات الجديدة للـ Extension</p>
+
+        <!-- Test 1: Data Extraction -->
+        <div class="test-section">
+            <h2>📊 1. استخراج أنواع البيانات المختلفة</h2>
+            <button class="btn" onclick="testExtractAll()">استخراج جميع البيانات</button>
+            <button class="btn" onclick="testExtractText()">استخراج النصوص فقط</button>
+            <button class="btn" onclick="testExtractImages()">استخراج الصور فقط</button>
+            <button class="btn" onclick="testExtractLinks()">استخراج الروابط فقط</button>
+            <button class="btn" onclick="testExtractTables()">استخراج الجداول فقط</button>
+            <div class="result" id="result1"></div>
+        </div>
+
+        <!-- Test 2: Dynamic Content -->
+        <div class="test-section">
+            <h2>🌐 2. التعامل مع المحتوى الديناميكي</h2>
+            <button class="btn" onclick="testWaitForContent()">انتظار المحتوى الديناميكي</button>
+            <button class="btn" onclick="testScrollAndLoad()">التمرير والتحميل</button>
+            <button class="btn" onclick="testInfiniteScroll()">Infinite Scroll</button>
+            <div class="result" id="result2"></div>
+        </div>
+
+        <!-- Test 3: Performance -->
+        <div class="test-section">
+            <h2>⚡ 3. الأداء والإحصائيات</h2>
+            <button class="btn" onclick="testPerformanceStats()">إحصائيات الأداء</button>
+            <button class="btn" onclick="testCacheStats()">إحصائيات Cache</button>
+            <button class="btn" onclick="testRateLimitStats()">إحصائيات Rate Limit</button>
+            <div class="result" id="result3"></div>
+        </div>
+
+        <!-- Test 4: Anti-Detection -->
+        <div class="test-section">
+            <h2>🔒 4. مكافحة الكشف</h2>
+            <button class="btn" onclick="testDetectAntiScraping()">كشف Anti-Scraping</button>
+            <button class="btn" onclick="testGenerateFingerprint()">توليد بصمة المتصفح</button>
+            <div class="result" id="result4"></div>
+        </div>
+
+        <!-- Test 5: Export -->
+        <div class="test-section">
+            <h2>💾 5. التصدير</h2>
+            <button class="btn" onclick="testExportJSON()">تصدير JSON</button>
+            <button class="btn" onclick="testExportCSV()">تصدير CSV</button>
+            <button class="btn" onclick="testExportXML()">تصدير XML</button>
+            <div class="result" id="result5"></div>
+        </div>
+    </div>
+
+    <script>
+        // Helper function to send messages to content script
+        async function sendMessage(action, options = {}) {
+            try {
+                const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+                return new Promise((resolve, reject) => {
+                    chrome.tabs.sendMessage(tab.id, { action, ...options }, (response) => {
+                        if (chrome.runtime.lastError) {
+                            reject(chrome.runtime.lastError);
+                        } else {
+                            resolve(response);
+                        }
+                    });
+                });
+            } catch (error) {
+                return { success: false, error: error.message };
+            }
+        }
+
+        function displayResult(elementId, data, status = 'success') {
+            const element = document.getElementById(elementId);
+            const statusClass = status;
+            const statusText = status === 'success' ? '✅ نجح' : status === 'error' ? '❌ فشل' : 'ℹ️ معلومات';
+            
+            element.innerHTML = `
+                <div class="status ${statusClass}">${statusText}</div>
+                <pre>${JSON.stringify(data, null, 2)}</pre>
+            `;
+        }
+
+        // Test 1: Data Extraction
+        async function testExtractAll() {
+            const response = await sendMessage('extractAllData');
+            displayResult('result1', response, response.success ? 'success' : 'error');
+        }
+
+        async function testExtractText() {
+            const response = await sendMessage('extractText');
+            displayResult('result1', response, response.success ? 'success' : 'error');
+        }
+
+        async function testExtractImages() {
+            const response = await sendMessage('extractImages');
+            displayResult('result1', response, response.success ? 'success' : 'error');
+        }
+
+        async function testExtractLinks() {
+            const response = await sendMessage('extractLinks');
+            displayResult('result1', response, response.success ? 'success' : 'error');
+        }
+
+        async function testExtractTables() {
+            const response = await sendMessage('extractTables');
+            displayResult('result1', response, response.success ? 'success' : 'error');
+        }
+
+        // Test 2: Dynamic Content
+        async function testWaitForContent() {
+            const response = await sendMessage('waitForDynamicContent', {
+                options: {
+                    timeout: 10000,
+                    scrollToBottom: false,
+                    waitForAjax: true
+                }
+            });
+            displayResult('result2', response, response.success ? 'success' : 'error');
+        }
+
+        async function testScrollAndLoad() {
+            const response = await sendMessage('scrollAndLoad', {
+                timeout: 10000
+            });
+            displayResult('result2', response, response.success ? 'success' : 'error');
+        }
+
+        async function testInfiniteScroll() {
+            const response = await sendMessage('handleInfiniteScroll', {
+                options: {
+                    maxScrolls: 5,
+                    scrollDelay: 1000
+                }
+            });
+            displayResult('result2', response, response.success ? 'success' : 'error');
+        }
+
+        // Test 3: Performance
+        async function testPerformanceStats() {
+            const response = await sendMessage('getPerformanceStats');
+            displayResult('result3', response, response.success ? 'success' : 'error');
+        }
+
+        async function testCacheStats() {
+            const response = await sendMessage('getCacheStats');
+            displayResult('result3', response, response.success ? 'success' : 'error');
+        }
+
+        async function testRateLimitStats() {
+            const response = await sendMessage('getRateLimitStats');
+            displayResult('result3', response, response.success ? 'success' : 'error');
+        }
+
+        // Test 4: Anti-Detection
+        async function testDetectAntiScraping() {
+            const response = await sendMessage('detectAntiScraping');
+            displayResult('result4', response, response.success ? 'success' : 'error');
+        }
+
+        async function testGenerateFingerprint() {
+            const response = await sendMessage('generateFingerprint');
+            displayResult('result4', response, response.success ? 'success' : 'error');
+        }
+
+        // Test 5: Export
+        async function testExportJSON() {
+            const response = await sendMessage('exportData', { format: 'json' });
+            displayResult('result5', response, response.success ? 'success' : 'error');
+        }
+
+        async function testExportCSV() {
+            const response = await sendMessage('exportData', { format: 'csv' });
+            displayResult('result5', response, response.success ? 'success' : 'error');
+        }
+
+        async function testExportXML() {
+            const response = await sendMessage('exportData', { format: 'xml' });
+            displayResult('result5', response, response.success ? 'success' : 'error');
+        }
+    </script>
+</body>
+</html>

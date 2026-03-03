@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner, faExclamationTriangle } from "@fortawesome/free-solid-svg-icons";
 
@@ -56,13 +56,13 @@ export default function StudentInsight({
           disabled={studentInsightLoading}
           className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:opacity-50"
         >
-          {studentInsightLoading ? <FontAwesomeIcon icon={faSpinner} spin /> : "Load Insight"}
+          {studentInsightLoading ? <FontAwesomeIcon icon={faSpinner as any} spin /> : "Load Insight"}
         </button>
       </div>
 
       {studentInsightError && (
         <div className="bg-red-50 border border-red-200 rounded p-3 mb-4 flex items-center gap-2">
-          <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500" />
+          <FontAwesomeIcon icon={faExclamationTriangle as any} className="text-red-500" />
           <span className="text-sm text-red-700">{studentInsightError}</span>
         </div>
       )}
@@ -136,3 +136,4 @@ export default function StudentInsight({
     </div>
   );
 }
+

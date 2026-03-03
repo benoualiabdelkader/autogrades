@@ -110,7 +110,7 @@ export class DOMExtractor {
         .map(child => child.textContent?.trim())
         .filter(text => text && text.length > 0)
         .join(' ');
-      
+
       if (directText) {
         node.text = directText;
       }
@@ -205,7 +205,7 @@ export class DOMExtractor {
   private extractHeadings(root: Element) {
     const headings: Array<{ level: string; text: string; xpath: string }> = [];
     const headingTags = ['h1', 'h2', 'h3', 'h4', 'h5', 'h6'];
-    
+
     headingTags.forEach(tag => {
       const elements = root.querySelectorAll(tag);
       elements.forEach(el => {
@@ -226,7 +226,7 @@ export class DOMExtractor {
   private extractLinks(root: Element) {
     const links: Array<{ href: string; text: string; xpath: string }> = [];
     const elements = root.querySelectorAll('a[href]');
-    
+
     elements.forEach(el => {
       const href = el.getAttribute('href');
       if (href) {
@@ -247,7 +247,7 @@ export class DOMExtractor {
   private extractImages(root: Element) {
     const images: Array<{ src: string; alt: string; xpath: string }> = [];
     const elements = root.querySelectorAll('img[src]');
-    
+
     elements.forEach(el => {
       const src = el.getAttribute('src');
       if (src) {
@@ -268,7 +268,7 @@ export class DOMExtractor {
   private extractForms(root: Element) {
     const forms: Array<{ action: string; method: string; inputs: number }> = [];
     const elements = root.querySelectorAll('form');
-    
+
     elements.forEach(el => {
       forms.push({
         action: el.getAttribute('action') || '',
@@ -286,12 +286,12 @@ export class DOMExtractor {
   private extractTables(root: Element) {
     const tables: Array<{ rows: number; cols: number; xpath: string }> = [];
     const elements = root.querySelectorAll('table');
-    
+
     elements.forEach(el => {
       const rows = el.querySelectorAll('tr').length;
       const firstRow = el.querySelector('tr');
       const cols = firstRow ? firstRow.querySelectorAll('td, th').length : 0;
-      
+
       tables.push({
         rows,
         cols,
@@ -427,7 +427,7 @@ export class DOMExtractor {
         return null;
       }
 
-      const match = current.children.find(child => {
+      const match: DOMNode | undefined = current.children.find(child => {
         if (part.startsWith('#')) {
           return child.id === part.substring(1);
         } else if (part.includes('.')) {

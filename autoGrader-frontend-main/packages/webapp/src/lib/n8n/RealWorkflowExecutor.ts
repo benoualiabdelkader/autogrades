@@ -149,9 +149,41 @@ export class RealWorkflowExecutor {
             break;
 
           case 'n8n-nodes-base.mySql':
-            // Database query
+            // Database query (Moodle)
             currentData = await this.executeDatabaseQuery(node, currentData);
             totalProcessed = currentData.length;
+            
+            if (currentData.length === 0) {
+              console.warn('⚠️ Database query returned 0 rows. Workflow will complete with no data.');
+              console.log('💡 Tip: Make sure your Moodle database has the required tables and data, or use sample data for testing.');
+              // Return early since there's no data to process
+              return {
+                data: [],
+                totalProcessed: 0,
+                successful: 0,
+                failed: 0,
+                outputFile: null
+              };
+            }
+            break;
+
+          case 'n8n-nodes-base.extensionData':
+            // Extension data query
+            currentData = await this.executeExtensionQuery(node, currentData);
+            totalProcessed = currentData.length;
+            
+            if (currentData.length === 0) {
+              console.warn('⚠️ Extension data query returned 0 rows. Workflow will complete with no data.');
+              console.log('💡 Tip: Make sure you have extracted data from the browser extension first.');
+              // Return early since there's no data to process
+              return {
+                data: [],
+                totalProcessed: 0,
+                successful: 0,
+                failed: 0,
+                outputFile: null
+              };
+            }
             break;
 
           case 'n8n-nodes-base.httpRequest':
@@ -217,6 +249,8 @@ export class RealWorkflowExecutor {
     try {
       const query = node.parameters.query;
       
+      console.log('📊 Executing database query:', query?.substring(0, 100) + '...');
+      
       const response = await fetch('/api/moodle/query', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -233,13 +267,77 @@ export class RealWorkflowExecutor {
 
       const result = await response.json();
       
-      if (result.success) {
-        return result.data.map((row: any) => ({ json: row }));
+      if (!response.ok) {
+        console.error('❌ Database query HTTP error:', response.status, response.statusText);
+        console.error('Error details:', result);
+        return [];
       }
       
+      if (result.success) {
+        const dataArray = result.data || [];
+        console.log(`✅ Database query successful: ${dataArray.length} rows returned`);
+        
+        if (dataArray.length === 0) {
+          console.warn('⚠️ Warning: Query returned 0 rows. The Moodle database may be empty or the query criteria may not match any records.');
+        }
+        
+        return dataArray.map((row: any) => ({ json: row }));
+      } else {
+        console.error('❌ Database query failed:', result.error || 'Unknown error');
+        return [];
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Database query exception:', error.message || error);
       return [];
-    } catch (error) {
-      console.error('Database query failed:', error);
+    }
+  }
+
+  /**
+   * Execute extension data query
+   */
+  private async executeExtensionQuery(node: any, inputData: any[]): Promise<any[]> {
+    try {
+      const transformationType = node.parameters.transformationType || 'assignments';
+      const query = node.parameters.query || '';
+      
+      console.log('📊 Executing extension data query:', { transformationType, query });
+      
+      const response = await fetch('/api/extension/query', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          query,
+          transformationType
+        })
+      });
+
+      const result = await response.json();
+      
+      if (!response.ok) {
+        console.error('❌ Extension query HTTP error:', response.status, response.statusText);
+        console.error('Error details:', result);
+        return [];
+      }
+      
+      if (result.success) {
+        const dataArray = result.data || [];
+        console.log(`✅ Extension query successful: ${dataArray.length} items returned`);
+        console.log(`📍 Data source: ${result.metadata?.source || 'unknown'}`);
+        console.log(`📍 Original URL: ${result.metadata?.originalUrl || 'N/A'}`);
+        
+        if (dataArray.length === 0) {
+          console.warn('⚠️ Warning: Extension query returned 0 items. Please extract data from the browser extension first.');
+        }
+        
+        return dataArray.map((item: any) => ({ json: item }));
+      } else {
+        console.error('❌ Extension query failed:', result.error || 'Unknown error');
+        return [];
+      }
+      
+    } catch (error: any) {
+      console.error('❌ Extension query exception:', error.message || error);
       return [];
     }
   }

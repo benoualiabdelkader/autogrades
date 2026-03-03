@@ -16,7 +16,45 @@ type ChatRequest = {
   response_format?: { type: 'text' | 'json_object' };
 };
 
-const DEFAULT_MODEL = 'qwen/qwen3-32b';
+const DEFAULT_MODEL = 'llama-3.3-70b-versatile';
+const GRADING_MODEL = 'llama-3.3-70b-versatile';
+
+// Smart max_tokens based on request context
+function getMaxTokens(body: ChatRequest): number {
+  // If explicitly set, respect it (but cap at 4000)
+  if (typeof body.max_tokens === 'number') {
+    return Math.min(body.max_tokens, 4000);
+  }
+  
+  // Detect grading/analysis requests for higher token limits
+  const systemMsg = body.messages?.find(m => m?.role === 'system')?.content || '';
+  const userMsg = body.messages?.find(m => m?.role === 'user')?.content || '';
+  const combined = `${systemMsg} ${userMsg}`.toLowerCase();
+  
+  if (combined.includes('json') || combined.includes('تقييم') || combined.includes('تحليل') || combined.includes('grade') || combined.includes('rubric')) {
+    return 2000; // Grading/analysis needs detailed output
+  }
+  if (combined.includes('rule') || combined.includes('قاعدة') || combined.includes('تصحيح')) {
+    return 1800;
+  }
+  return 1200; // Better default than 700
+}
+
+// Smart model selection based on task
+function getModel(body: ChatRequest): string {
+  if (typeof body.model === 'string' && body.model.trim()) {
+    return body.model;
+  }
+  
+  const systemMsg = body.messages?.find(m => m?.role === 'system')?.content || '';
+  const combined = systemMsg.toLowerCase();
+  
+  // Use the powerful model for grading tasks
+  if (combined.includes('تقييم') || combined.includes('grade') || combined.includes('تحليل') || combined.includes('تصحيح')) {
+    return GRADING_MODEL;
+  }
+  return DEFAULT_MODEL;
+}
 
 async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   if (req.method !== 'POST') {
@@ -38,7 +76,7 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   const body = (req.body || {}) as ChatRequest;
-  const model = typeof body.model === 'string' && body.model.trim() ? body.model : DEFAULT_MODEL;
+  const model = getModel(body);
   const messages = Array.isArray(body.messages)
     ? body.messages
         .filter(
@@ -47,8 +85,8 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
             typeof m?.content === 'string' &&
             m.content.trim().length > 0
         )
-        .map((m) => ({ role: m.role, content: m.content.slice(0, 8000) }))
-        .slice(-20)
+        .map((m) => ({ role: m.role, content: m.content.slice(0, 12000) }))
+        .slice(-30)
     : [];
 
   if (!messages.length) {
@@ -57,11 +95,12 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
 
   try {
     const groq = new Groq({ apiKey });
+    const maxTokens = getMaxTokens(body);
     const completion = await groq.chat.completions.create({
       model,
       messages,
-      temperature: typeof body.temperature === 'number' ? body.temperature : 0.2,
-      max_tokens: typeof body.max_tokens === 'number' ? body.max_tokens : 700,
+      temperature: typeof body.temperature === 'number' ? body.temperature : 0.15,
+      max_tokens: maxTokens,
       response_format: body.response_format
     });
 

@@ -48,6 +48,18 @@ export default function RealWorkflowModal({
         }
     }, [isOpen, taskId]);
 
+    // Determine data source type
+    const getDataSourceType = () => {
+        if (!workflowMeta) return 'unknown';
+        const nodes = workflowMeta.workflow?.nodes || [];
+        const hasExtensionNode = nodes.some((n: any) => n.type === 'n8n-nodes-base.extensionData');
+        const hasMySqlNode = nodes.some((n: any) => n.type === 'n8n-nodes-base.mySql');
+        
+        if (hasExtensionNode) return 'extension';
+        if (hasMySqlNode) return 'moodle';
+        return 'unknown';
+    };
+
     const handleExecute = async () => {
         if (!taskId) return;
 
@@ -139,27 +151,54 @@ export default function RealWorkflowModal({
                             </div>
 
                             {/* Data Source */}
-                            <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4">
-                                <h3 className="text-sm font-bold text-purple-500 mb-2">Data Source (Moodle DB)</h3>
-                                <div className="grid grid-cols-2 gap-2 text-xs">
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Host:</span>
-                                        <span className="font-mono">127.0.0.1</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Port:</span>
-                                        <span className="font-mono">3307</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Database:</span>
-                                        <span className="font-mono">moodle</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                        <span className="text-muted-foreground">Prefix:</span>
-                                        <span className="font-mono">mdl_</span>
+                            {getDataSourceType() === 'moodle' && (
+                                <div className="bg-purple-500/5 border border-purple-500/20 rounded-xl p-4">
+                                    <h3 className="text-sm font-bold text-purple-500 mb-2">📊 Data Source: Moodle Database</h3>
+                                    <div className="grid grid-cols-2 gap-2 text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Host:</span>
+                                            <span className="font-mono">127.0.0.1</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Port:</span>
+                                            <span className="font-mono">3307</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Database:</span>
+                                            <span className="font-mono">moodle</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Prefix:</span>
+                                            <span className="font-mono">mdl_</span>
+                                        </div>
                                     </div>
                                 </div>
-                            </div>
+                            )}
+
+                            {getDataSourceType() === 'extension' && (
+                                <div className="bg-violet-500/5 border border-violet-500/20 rounded-xl p-4">
+                                    <h3 className="text-sm font-bold text-violet-500 mb-2">🔌 Data Source: Browser Extension</h3>
+                                    <div className="space-y-2 text-xs">
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Source:</span>
+                                            <span className="font-mono">OnPage Scraper Extension</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">API Endpoint:</span>
+                                            <span className="font-mono text-violet-400">/api/extension/query</span>
+                                        </div>
+                                        <div className="flex justify-between">
+                                            <span className="text-muted-foreground">Data Type:</span>
+                                            <span className="font-mono">Real-time scraped data</span>
+                                        </div>
+                                        <div className="bg-violet-500/10 border border-violet-500/20 rounded p-2 mt-2">
+                                            <p className="text-xs text-violet-300">
+                                                💡 <b>Tip:</b> Extract data from your browser using the OnPage Scraper extension first. The workflow will use the latest scraped data.
+                                            </p>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
 
                             {/* AI Provider */}
                             <div className="bg-green-500/5 border border-green-500/20 rounded-xl p-4">
@@ -261,30 +300,55 @@ export default function RealWorkflowModal({
                         /* Success State */
                         <div className="space-y-4">
                             <div className="text-center py-6">
-                                <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
-                                    <FontAwesomeIcon icon={faCheckCircle as any} className="text-3xl text-green-500" />
-                                </div>
-                                <h3 className="text-xl font-bold text-green-500 mb-2">Successfully Executed!</h3>
-                                <p className="text-muted-foreground">
-                                    Processed {result.stats.totalProcessed} items in {(result.stats.duration / 1000).toFixed(1)} seconds
-                                </p>
+                                {result.stats.totalProcessed === 0 ? (
+                                    <>
+                                        <div className="w-16 h-16 rounded-full bg-yellow-500/20 flex items-center justify-center mx-auto mb-4">
+                                            <FontAwesomeIcon icon={faExclamationTriangle as any} className="text-3xl text-yellow-500" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-yellow-500 mb-2">No Data Found</h3>
+                                        <p className="text-muted-foreground mb-3">
+                                            Workflow executed successfully, but the database query returned 0 rows.
+                                        </p>
+                                        <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-left text-sm">
+                                            <p className="font-bold text-yellow-500 mb-2">💡 Troubleshooting Tips:</p>
+                                            <ul className="space-y-1 text-muted-foreground">
+                                                <li>• Check if your Moodle database is populated with data</li>
+                                                <li>• Verify the database connection (127.0.0.1:3307)</li>
+                                                <li>• Ensure required tables exist (mdl_user, mdl_assign, etc.)</li>
+                                                <li>• Try running a simpler query first to test connectivity</li>
+                                            </ul>
+                                        </div>
+                                    </>
+                                ) : (
+                                    <>
+                                        <div className="w-16 h-16 rounded-full bg-green-500/20 flex items-center justify-center mx-auto mb-4">
+                                            <FontAwesomeIcon icon={faCheckCircle as any} className="text-3xl text-green-500" />
+                                        </div>
+                                        <h3 className="text-xl font-bold text-green-500 mb-2">Successfully Executed!</h3>
+                                        <p className="text-muted-foreground">
+                                            Processed {result.stats.totalProcessed} items in {(result.stats.duration / 1000).toFixed(1)} seconds
+                                        </p>
+                                    </>
+                                )}
                             </div>
 
-                            {/* Stats */}
-                            <div className="grid grid-cols-3 gap-3">
-                                <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 text-center">
-                                    <div className="text-2xl font-bold text-green-500">{result.stats.successful}</div>
-                                    <div className="text-xs text-muted-foreground">Successful</div>
+                            {/* Stats - Only show if data was processed */}
+                            {result.stats.totalProcessed > 0 && (
+                                <div className="grid grid-cols-3 gap-3">
+                                    <div className="bg-green-500/10 border border-green-500/20 rounded-xl p-3 text-center">
+                                        <div className="text-2xl font-bold text-green-500">{result.stats.successful}</div>
+                                        <div className="text-xs text-muted-foreground">Successful</div>
+                                    </div>
+                                    <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
+                                        <div className="text-2xl font-bold text-red-500">{result.stats.failed}</div>
+                                        <div className="text-xs text-muted-foreground">Failed</div>
+                                    </div>
+                                    <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-center">
+                                        <div className="text-2xl font-bold text-blue-500">{result.stats.totalProcessed}</div>
+                                        <div className="text-xs text-muted-foreground">Total</div>
+                                    </div>
                                 </div>
-                                <div className="bg-red-500/10 border border-red-500/20 rounded-xl p-3 text-center">
-                                    <div className="text-2xl font-bold text-red-500">{result.stats.failed}</div>
-                                    <div className="text-xs text-muted-foreground">Failed</div>
-                                </div>
-                                <div className="bg-blue-500/10 border border-blue-500/20 rounded-xl p-3 text-center">
-                                    <div className="text-2xl font-bold text-blue-500">{result.stats.totalProcessed}</div>
-                                    <div className="text-xs text-muted-foreground">Total</div>
-                                </div>
-                            </div>
+                            )}
 
                             {/* Download Info */}
                             {result.outputFile && (

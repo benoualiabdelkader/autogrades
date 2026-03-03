@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faUsers, faGraduationCap, faSignal, faChartLine } from "@fortawesome/free-solid-svg-icons";
 
@@ -39,7 +39,7 @@ export default function StatsPanel({ stats, statsError, onRefreshStats }: StatsP
         <div className="grid grid-cols-2 gap-4">
           <div className="bg-blue-50 rounded p-3">
             <div className="flex items-center gap-2 mb-1">
-              <FontAwesomeIcon icon={faUsers} className="text-blue-500" />
+              <FontAwesomeIcon icon={faUsers as any} className="text-blue-500" />
               <span className="text-sm font-medium">Total Students</span>
             </div>
             <div className="text-2xl font-bold">{stats.totalStudents}</div>
@@ -47,7 +47,7 @@ export default function StatsPanel({ stats, statsError, onRefreshStats }: StatsP
 
           <div className="bg-green-50 rounded p-3">
             <div className="flex items-center gap-2 mb-1">
-              <FontAwesomeIcon icon={faGraduationCap} className="text-green-500" />
+              <FontAwesomeIcon icon={faGraduationCap as any} className="text-green-500" />
               <span className="text-sm font-medium">Total Courses</span>
             </div>
             <div className="text-2xl font-bold">{stats.totalCourses}</div>
@@ -55,7 +55,7 @@ export default function StatsPanel({ stats, statsError, onRefreshStats }: StatsP
 
           <div className="bg-purple-50 rounded p-3">
             <div className="flex items-center gap-2 mb-1">
-              <FontAwesomeIcon icon={faSignal} className="text-purple-500" />
+              <FontAwesomeIcon icon={faSignal as any} className="text-purple-500" />
               <span className="text-sm font-medium">Active Sessions</span>
             </div>
             <div className="text-2xl font-bold">{stats.activeSessions}</div>
@@ -63,7 +63,7 @@ export default function StatsPanel({ stats, statsError, onRefreshStats }: StatsP
 
           <div className="bg-yellow-50 rounded p-3">
             <div className="flex items-center gap-2 mb-1">
-              <FontAwesomeIcon icon={faChartLine} className="text-yellow-500" />
+              <FontAwesomeIcon icon={faChartLine as any} className="text-yellow-500" />
               <span className="text-sm font-medium">Average Grade</span>
             </div>
             <div className="text-2xl font-bold">{stats.averageGrade.toFixed(1)}%</div>
@@ -79,3 +79,4 @@ export default function StatsPanel({ stats, statsError, onRefreshStats }: StatsP
     </div>
   );
 }
+

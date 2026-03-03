@@ -18,6 +18,14 @@ type AssistantContext = {
   riskLevel?: string;
   hasDraft?: boolean;
   reviewPrompt?: string;
+  stats?: { totalStudents?: number; totalCourses?: number; averageGrade?: number; activeSessions?: number } | null;
+  studentInsight?: {
+    riskScore?: number;
+    inactivityDays?: number;
+    averageGrade?: number;
+    submissionsCount?: number;
+    notes?: string[];
+  } | null;
 };
 
 type ChatRequest = {
@@ -46,55 +54,94 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   const safeHistory: AssistantMessage[] = Array.isArray(body.history)
     ? body.history
         .filter((m) => (m?.role === 'user' || m?.role === 'assistant') && typeof m?.content === 'string')
-        .map((m) => ({ role: m.role, content: m.content.slice(0, 2000) }))
-        .slice(-8)
+        .map((m) => ({ role: m.role, content: m.content.slice(0, 3000) }))
+        .slice(-12)
     : [];
 
   const context = body.context || {};
   const tasksText = Array.isArray(context.tasks)
     ? context.tasks
         .slice(0, 20)
-        .map((t) => `${t.id}. ${t.title} [${t.ready ? 'ready' : 'missing workflow'}]`)
+        .map((t) => `${t.id}. ${t.title} — ${t.description} [${t.ready ? '✅ ready' : '⚠️ needs workflow'}]`)
         .join('\n')
     : 'No task metadata provided.';
 
   const selectedTaskText = context.selectedTask
-    ? `Selected task: ${context.selectedTask.id} - ${context.selectedTask.title}`
+    ? `Selected task: #${context.selectedTask.id} - ${context.selectedTask.title}`
     : 'No selected task.';
 
-  const previewText = `Preview rows: ${Number(context.previewCount || 0)}. Preview error: ${
-    context.previewError || 'none'
-  }`;
-  const studentText = `Selected student: ${context.selectedStudentName || 'none'}. Risk level: ${
-    context.riskLevel || 'unknown'
-  }. Row excerpt: ${context.selectedRowExcerpt || 'none'}`;
-  const editorText = `Feedback draft: ${context.hasDraft ? 'present' : 'empty'}. Review prompt: ${
-    context.reviewPrompt || 'not set'
+  const previewText = `Preview rows loaded: ${Number(context.previewCount || 0)}. ${context.previewError ? `Preview error: ${context.previewError}` : ''}`;
+
+  const studentText = `Selected student: ${context.selectedStudentName || 'none'}.
+Risk level: ${context.riskLevel || 'unknown'}.
+Row excerpt: ${context.selectedRowExcerpt || 'none'}.`;
+
+  const insightText = context.studentInsight
+    ? `Student insight: Risk score ${context.studentInsight.riskScore ?? '?'}/7, Avg grade ${context.studentInsight.averageGrade ?? '?'}%, Submissions ${context.studentInsight.submissionsCount ?? '?'}, Inactive ${context.studentInsight.inactivityDays ?? '?'} days. Notes: ${(context.studentInsight.notes || []).join(' | ')}`
+    : '';
+
+  const statsText = context.stats
+    ? `Class stats: ${context.stats.totalStudents || 0} students, ${context.stats.totalCourses || 0} courses, avg grade ${context.stats.averageGrade || 0}%, ${context.stats.activeSessions || 0} active sessions.`
+    : '';
+
+  const editorText = `Feedback draft: ${context.hasDraft ? 'has content' : 'empty'}. Review prompt: ${
+    context.reviewPrompt || 'default'
   }`;
 
-  const systemPrompt = `You are the AI assistant for an AutoGrader workflow dashboard used by instructors.
-Be very helpful, accurate, and practical.
-When relevant, give clear next actions tied to the available tasks and database preview.
-Prefer short, operational answers with concrete commands the user can type in chat.
-When a user asks "what should I do" or similar, give 2-4 prioritized steps.
-If a user asks for execution guidance, reference task IDs/titles from context.
-Do not invent data that is not in context.
-Do not output hidden reasoning or internal thoughts.
-Do not include tags like <think>...</think>.`;
+  const systemPrompt = `You are the AI assistant for AutoGrader — an intelligent classroom grading dashboard used by teachers and instructors.
+
+ROLE & EXPERTISE:
+- You are an expert in education, grading, student analytics, and teaching strategies.
+- You help teachers navigate the dashboard, review student data, create tasks, and generate feedback.
+- You provide data-driven insights when student information is available in context.
+
+RESPONSE STYLE:
+- Be concise and actionable. Teachers are busy — give clear, specific guidance.
+- When relevant, reference task IDs/titles and row data from context.
+- Use structured formatting: bullet points, numbered steps, and clear sections.
+- When asked "what should I do?" → give 2-4 prioritized steps with specific commands.
+- When student data is in context, proactively analyze: risk level, grade trends, engagement, and recommended actions.
+- Support both English and Arabic — respond in the user's language.
+- Never invent data not in context. If data is missing, say so and suggest how to load it.
+
+AVAILABLE COMMANDS (you can suggest these to the user):
+- "preview data" — loads student data for the selected task
+- "select row N" — selects a specific student row
+- "review selected" — runs AI review on the selected student
+- "run task N" — executes a workflow task
+- "help commands" — shows all available commands
+- "student insight" — shows detailed student analytics
+- "smart review" — auto-picks the weakest student and reviews them
+- "create task title | desc: ... | prompt: ..." — creates a custom task
+
+ANALYSIS GUIDELINES:
+- For at-risk students (high risk): recommend immediate intervention, 1:1 support, and targeted feedback.
+- For moderate students (medium risk): suggest focused improvement tasks and monitoring.
+- For strong students (low risk): suggest enrichment challenges and peer mentoring opportunities.
+- Always consider multiple signals: grades, submissions, activity, and trends.
+
+Do not output internal reasoning or <think> tags. Be direct and helpful.`;
 
   try {
     const groq = new Groq({ apiKey });
 
+    const contextBlock = [
+      selectedTaskText,
+      previewText,
+      studentText,
+      insightText,
+      statsText,
+      editorText,
+      `Tasks:\n${tasksText}`,
+    ].filter(Boolean).join('\n');
+
     const response = await groq.chat.completions.create({
       model: 'qwen/qwen3-32b',
-      temperature: 0.2,
-      max_tokens: 700,
+      temperature: 0.25,
+      max_tokens: 1200,
       messages: [
         { role: 'system', content: systemPrompt },
-        {
-          role: 'system',
-          content: `Application context:\n${selectedTaskText}\n${previewText}\n${studentText}\n${editorText}\nTasks:\n${tasksText}`
-        },
+        { role: 'system', content: `Current application context:\n${contextBlock}` },
         ...safeHistory.map((m) => ({ role: m.role, content: m.content })),
         { role: 'user', content: message }
       ]

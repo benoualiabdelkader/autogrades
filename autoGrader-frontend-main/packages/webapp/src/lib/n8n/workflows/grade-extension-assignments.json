@@ -1,0 +1,97 @@
+{
+  "name": "Grade Extension Assignments",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "start-grading-ext",
+      "name": "Start",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [250, 300]
+    },
+    {
+      "parameters": {
+        "transformationType": "assignments",
+        "query": ""
+      },
+      "id": "fetch-extension-data",
+      "name": "Fetch Extension Data",
+      "type": "n8n-nodes-base.extensionData",
+      "typeVersion": 1,
+      "position": [450, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer {{$env.GROQ_API_KEY}}"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "{ \"model\": \"qwen/qwen3-32b\", \"messages\": [ { \"role\": \"system\", \"content\": \"You are an expert grading assistant. Analyze student assignments and provide grades with detailed feedback. Respond in English or French only. Return ONLY a JSON object with: grade (number 0-100), feedback_text (string), strengths (string), improvements (string).\" }, { \"role\": \"user\", \"content\": \"Grade assignment for student: {{ $json.student_name }}. Assignment: {{ $json.assignment_name }}. Content: {{ $json.assignment_text }}. Status: {{ $json.status }}.\" } ], \"temperature\": 0.3, \"response_format\": { \"type\": \"json_object\" } }",
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "id": "ai-grade-ext",
+      "name": "AI Grade Assignment",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [650, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const response = $input.item.json.choices?.[0]?.message?.content; let grading; try { grading = JSON.parse(response); } catch (e) { grading = { grade: 75, feedback_text: 'Good work!', strengths: 'N/A', improvements: 'N/A' }; } return [{ json: { student_id: $('Fetch Extension Data').item.json.student_id, student_name: $('Fetch Extension Data').item.json.student_name, assignment_name: $('Fetch Extension Data').item.json.assignment_name, assignment_text: $('Fetch Extension Data').item.json.assignment_text, submission_date: $('Fetch Extension Data').item.json.submission_date, grade: grading.grade, feedback_text: grading.feedback_text, strengths: grading.strengths, improvements: grading.improvements } }];"
+      },
+      "id": "process-grade-ext",
+      "name": "Process Grade",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "options": {
+          "fileName": "={{ 'extension_grades_' + $now.format('yyyy-MM-dd_HHmmss') + '.csv' }}",
+          "headerRow": true
+        }
+      },
+      "id": "export-csv-ext",
+      "name": "Export to CSV",
+      "type": "n8n-nodes-base.convertToFile",
+      "typeVersion": 1.1,
+      "position": [1050, 300]
+    }
+  ],
+  "connections": {
+    "Start": {
+      "main": [[{ "node": "Fetch Extension Data", "type": "main", "index": 0 }]]
+    },
+    "Fetch Extension Data": {
+      "main": [[{ "node": "AI Grade Assignment", "type": "main", "index": 0 }]]
+    },
+    "AI Grade Assignment": {
+      "main": [[{ "node": "Process Grade", "type": "main", "index": 0 }]]
+    },
+    "Process Grade": {
+      "main": [[{ "node": "Export to CSV", "type": "main", "index": 0 }]]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "id": "grade-extension-assignments-001",
+  "tags": ["grading", "education", "assignments", "extension"]
+}

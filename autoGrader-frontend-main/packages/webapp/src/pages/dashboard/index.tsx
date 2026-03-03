@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -422,10 +422,10 @@ export default function DashboardPage() {
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
             message: text,
-            history: messages.slice(-8).map((m) => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content })),
+            history: messages.slice(-12).map((m) => ({ role: m.role === "ai" ? "assistant" : "user", content: m.content })),
             context: {
-              selectedTask: selectedTask ? { id: selectedTask.id, title: selectedTask.title } : null,
-              tasks: tasks.map((t) => ({ id: t.id, title: t.title, description: t.description, ready: registry.hasWorkflow(t.id) })),
+              selectedTask: selectedTask ? { id: selectedTask.id, title: selectedTask.title, description: selectedTask.description } : null,
+              tasks: tasks.map((t) => ({ id: t.id, title: t.title, description: t.description, active: t.active, ready: registry.hasWorkflow(t.id) })),
               previewCount: preview.length,
               previewError,
               selectedStudentName: selectedRowData
@@ -433,12 +433,29 @@ export default function DashboardPage() {
                 : "",
               selectedRowExcerpt: selectedRowData
                 ? Object.entries(selectedRowData)
-                  .slice(0, 6)
+                  .slice(0, 8)
                   .map(([k, v]) => `${k}: ${cell(v)}`)
                   .join(" | ")
                 : "",
+              stats: stats ? {
+                totalStudents: stats.totalStudents,
+                totalCourses: stats.totalCourses,
+                activeSessions: stats.activeSessions,
+                averageGrade: stats.averageGrade
+              } : null,
+              studentInsight: studentInsight?.overview ? {
+                studentName: studentInsight.overview.studentName,
+                averageGrade: studentInsight.overview.averageGrade,
+                submissionsCount: studentInsight.overview.submissionsCount,
+                coursesEnrolled: studentInsight.overview.coursesEnrolled,
+                riskLevel: studentInsight.riskLevel,
+                riskScore: studentInsight.riskScore,
+                inactivityDays: studentInsight.inactivityDays,
+                notes: studentInsight.notes
+              } : null,
               riskLevel: studentInsight?.riskLevel || "",
               hasDraft: Boolean(outputDraft.trim()),
+              draftWordCount: outputDraft.trim() ? outputDraft.trim().split(/\s+/).length : 0,
               reviewPrompt,
             },
           }),
@@ -450,7 +467,7 @@ export default function DashboardPage() {
         return null;
       }
     },
-    [messages, outputDraft, preview.length, previewError, registry, reviewPrompt, selectedRowData, selectedTask, studentInsight?.riskLevel, tasks]
+    [messages, outputDraft, preview.length, previewError, registry, reviewPrompt, selectedRowData, selectedTask, stats, studentInsight, tasks]
   );
 
   const reviewStudentData = useCallback(
@@ -459,7 +476,24 @@ export default function DashboardPage() {
       setReviewError("");
       try {
         const rowText = Object.entries(rowData).map(([k, v]) => `${k}: ${cell(v)}`).join("\n");
-        const prompt = `${promptText}\n\nTask: ${task.title}\nDescription: ${task.description}\n\nRow:\n${rowText}`;
+        const contextParts = [
+          promptText,
+          `\nTask: ${task.title}`,
+          `Description: ${task.description}`,
+          `\nStudent Data:\n${rowText}`
+        ];
+
+        // Add student insight context if available
+        if (studentInsight?.overview) {
+          contextParts.push(`\nStudent Analysis Context:`);
+          contextParts.push(`- Risk Level: ${studentInsight.riskLevel} (score: ${studentInsight.riskScore})`);
+          contextParts.push(`- Average Grade: ${studentInsight.overview.averageGrade}%`);
+          contextParts.push(`- Submissions: ${studentInsight.overview.submissionsCount}`);
+          contextParts.push(`- Inactivity: ${studentInsight.inactivityDays} days`);
+          contextParts.push(`- Teacher Notes: ${studentInsight.notes.join("; ")}`);
+        }
+
+        const prompt = contextParts.join("\n");
         const reply = await askModel(prompt);
         if (!reply) throw new Error("AI review failed.");
         setOutputDraft(reply);
@@ -473,7 +507,7 @@ export default function DashboardPage() {
         setReviewBusy(false);
       }
     },
-    [appendAI, askModel]
+    [appendAI, askModel, studentInsight]
   );
 
   const reviewSelectedStudent = useCallback(async () => {
@@ -502,15 +536,77 @@ export default function DashboardPage() {
           break;
         }
       }
-      if (!Number.isNaN(detectedGrade) && detectedGrade < 60) {
-        return "Provide intervention-focused English teacher feedback. Include score /100, critical weaknesses, immediate corrective plan, and a 7-day support action list.";
+
+      // Detect submission status for contextual prompts
+      const statusVal = normalize(cell((rowData as Record<string, unknown>).status));
+      const isNewSubmission = statusVal.includes("new") || statusVal.includes("draft");
+      const hasLateIndicator = statusVal.includes("late") || Object.keys(rowData).some(k => normalize(k).includes("late"));
+
+      // Build context-aware prompt based on multiple signals
+      let promptParts: string[] = [];
+
+      if (!Number.isNaN(detectedGrade) && detectedGrade < 40) {
+        promptParts.push(
+          "CRITICAL: This student scored very low and needs immediate intervention.",
+          "Provide emergency feedback with: score /100, specific critical weaknesses identified,",
+          "step-by-step remediation plan for the next 2 weeks,",
+          "simplified re-submission guidelines,",
+          "and a supportive but honest tone encouraging the student not to give up."
+        );
+      } else if (!Number.isNaN(detectedGrade) && detectedGrade < 60) {
+        promptParts.push(
+          "This student is at risk of failing. Provide intervention-focused English teacher feedback.",
+          "Include score /100, critical weaknesses, immediate corrective plan,",
+          "a 7-day support action list, and 3 specific resources or exercises to improve."
+        );
+      } else if (!Number.isNaN(detectedGrade) && detectedGrade < 75) {
+        promptParts.push(
+          "This student is performing at a moderate level with room for improvement.",
+          "Provide balanced English teacher feedback with score /100,",
+          "key strengths to build upon, top 3 improvements prioritized by impact,",
+          "and targeted exercises for grammar, vocabulary, and coherence."
+        );
+      } else if (!Number.isNaN(detectedGrade) && detectedGrade < 90) {
+        promptParts.push(
+          "This is a good student who can reach excellence with the right guidance.",
+          "Provide encouraging English teacher feedback with score /100,",
+          "strengths to maintain, 2 specific areas to refine for top-tier performance,",
+          "one enrichment challenge, and advanced resource recommendations."
+        );
+      } else if (!Number.isNaN(detectedGrade)) {
+        promptParts.push(
+          "This student is performing at an excellent level.",
+          "Provide concise English teacher feedback with score /100,",
+          "specific strengths to celebrate, one advanced challenge task,",
+          "peer mentoring opportunity suggestions, and enrichment goals for next month."
+        );
+      } else {
+        promptParts.push(
+          "Provide concise English teacher feedback with score /100,",
+          "strengths to maintain, enrichment opportunities, and one challenge task for next week."
+        );
       }
-      if (!Number.isNaN(detectedGrade) && detectedGrade < 75) {
-        return "Provide balanced English teacher feedback with score /100, key strengths, top improvements, and targeted exercises for grammar, vocabulary, and coherence.";
+
+      if (isNewSubmission) {
+        promptParts.push("Note: This appears to be a first or new submission — provide welcoming and constructive initial feedback.");
       }
-      return "Provide concise English teacher feedback with score /100, strengths to maintain, enrichment opportunities, and one challenge task for next week.";
+      if (hasLateIndicator) {
+        promptParts.push("Note: This submission was late — address time management constructively without being punitive.");
+      }
+
+      // Add student insight context if available
+      if (studentInsight?.overview) {
+        if (studentInsight.inactivityDays > 14) {
+          promptParts.push(`Important context: This student has been inactive for ${Math.round(studentInsight.inactivityDays)} days. Address re-engagement warmly.`);
+        }
+        if (studentInsight.riskLevel === "high") {
+          promptParts.push("This student is flagged as HIGH RISK. Prioritize supportive, actionable feedback.");
+        }
+      }
+
+      return promptParts.join(" ");
     },
-    [reviewPrompt]
+    [reviewPrompt, studentInsight]
   );
 
   const createTaskFromValues = useCallback(async (values: NewTaskForm): Promise<{ ok: boolean; error?: string; title?: string }> => {
@@ -763,17 +859,32 @@ export default function DashboardPage() {
       if (/(^|\s)(help|commands|control)(\s|$)/.test(n) || /مساعدة|اوامر|أوامر/.test(raw)) {
         appendAI(
           [
-            "Control commands:",
+            "Dashboard Control Commands:",
+            "",
+            "📋 Tasks & Navigation:",
             "- list tasks | open task 2 | run task 2",
             "- pause task 2 | activate task 2",
             "- autopilot review | what next",
+            "",
+            "📊 Data & Preview:",
             "- preview data | refresh all | refresh stats",
             "- search tasks: grading | search rows: ahmed",
             "- select row 3 | select student id 45 | next row",
+            "- class summary | grade report",
+            "",
+            "✏️ Review & Feedback:",
             "- set review prompt: ... | review selected",
+            "- quick summary prompt | detailed correction prompt | motivational prompt",
+            "- batch review all | batch review top 5",
             "- save draft | clear draft | append draft: ...",
-            "- copy summary | copy details",
+            "- insert feedback template",
+            "",
+            "📋 Export & Copy:",
+            "- copy summary | copy details | export csv",
+            "",
+            "⚙️ Advanced:",
             '- create task title: Essay Coach | description: ... | prompt: ... | icon: ESS',
+            "- show advanced | hide advanced | status",
             "- You can chain commands with ';' or 'then'",
           ].join("\n")
         );
@@ -1134,10 +1245,122 @@ export default function DashboardPage() {
         return true;
       }
 
+      // Class summary command
+      if (/class summary|class overview|classroom summary/.test(n) || /ملخص الفصل|ملخص الصف/.test(raw)) {
+        const lines: string[] = ["📊 Classroom Summary:"];
+        if (stats) {
+          lines.push(`- Total Students: ${stats.totalStudents}`);
+          lines.push(`- Total Courses: ${stats.totalCourses}`);
+          lines.push(`- Active Sessions: ${stats.activeSessions}`);
+          lines.push(`- Average Grade: ${stats.averageGrade}%`);
+          const healthLabel = stats.averageGrade >= 75 ? "Healthy" : stats.averageGrade >= 60 ? "Needs Attention" : "At Risk";
+          lines.push(`- Class Health: ${healthLabel}`);
+        } else {
+          lines.push("- Stats not loaded. Try: refresh stats");
+        }
+        lines.push(`- Tasks: ${tasks.length} (${readyCount} ready)`);
+        lines.push(`- Loaded Rows: ${preview.length}`);
+        if (studentInsight?.overview) {
+          lines.push(`\n📌 Currently Selected: ${studentInsight.overview.studentName}`);
+          lines.push(`- Risk: ${studentInsight.riskLevel.toUpperCase()}, Grade: ${studentInsight.overview.averageGrade}%`);
+        }
+        appendAI(lines.join("\n"));
+        return true;
+      }
+
+      // Grade report command
+      if (/grade report|grades report|grade distribution/.test(n) || /تقرير الدرجات|توزيع الدرجات/.test(raw)) {
+        if (!preview.length) {
+          appendAI("No data loaded. Try: preview data");
+          return true;
+        }
+        const gradeKeys = ["grade", "finalgrade", "average_grade", "score"];
+        const grades: number[] = [];
+        for (const row of preview) {
+          for (const [key, value] of Object.entries(row)) {
+            if (gradeKeys.some((hint) => normalize(key).includes(hint))) {
+              const n = numericValue(value, Number.NaN);
+              if (!Number.isNaN(n)) { grades.push(n); break; }
+            }
+          }
+        }
+        if (!grades.length) {
+          appendAI("No grade data found in current rows.");
+          return true;
+        }
+        const mean = grades.reduce((a, b) => a + b, 0) / grades.length;
+        const sorted = [...grades].sort((a, b) => a - b);
+        const median = sorted.length % 2 === 0 ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2 : sorted[Math.floor(sorted.length / 2)];
+        const aCount = grades.filter(g => g >= 90).length;
+        const bCount = grades.filter(g => g >= 80 && g < 90).length;
+        const cCount = grades.filter(g => g >= 70 && g < 80).length;
+        const dCount = grades.filter(g => g >= 60 && g < 70).length;
+        const fCount = grades.filter(g => g < 60).length;
+        const passRate = ((grades.filter(g => g >= 60).length / grades.length) * 100).toFixed(1);
+        appendAI([
+          "📈 Grade Distribution Report:",
+          `- Students: ${grades.length}`,
+          `- Mean: ${mean.toFixed(1)}% | Median: ${median.toFixed(1)}%`,
+          `- Min: ${sorted[0]}% | Max: ${sorted[sorted.length - 1]}%`,
+          `- Pass Rate: ${passRate}%`,
+          `- A (90+): ${aCount} | B (80-89): ${bCount} | C (70-79): ${cCount}`,
+          `- D (60-69): ${dCount} | F (<60): ${fCount}`,
+          fCount > 0 ? `\n⚠️ ${fCount} student(s) below passing grade need intervention.` : "\n✅ All students above passing grade."
+        ].join("\n"));
+        return true;
+      }
+
+      // Batch review command
+      const batchMatch = raw.match(/batch review\s*(all|top\s*(\d+))?/i);
+      if (batchMatch) {
+        if (!selectedTask) { appendAI("Select a task first."); return true; }
+        const rows = preview.length ? preview : await fetchPreview(selectedTask);
+        if (!rows.length) { appendAI("No rows to review."); return true; }
+        const limit = batchMatch[2] ? Math.min(Number(batchMatch[2]), rows.length, 5) : Math.min(rows.length, 3);
+        appendAI(`Starting batch review of ${limit} student(s)...`);
+        let reviewed = 0;
+        for (let i = 0; i < limit; i++) {
+          const row = rows[i];
+          setSelectedRow(i);
+          const smartPrompt = buildSmartReviewPrompt(row);
+          const result = await reviewStudentData(selectedTask, row, smartPrompt);
+          if (result.ok) reviewed++;
+        }
+        appendAI(`Batch review complete: ${reviewed}/${limit} students reviewed successfully.`);
+        return true;
+      }
+
+      // Export CSV command
+      if (/export csv|download csv|export data/.test(n) || /تصدير|تحميل البيانات/.test(raw)) {
+        if (!preview.length) {
+          appendAI("No data to export. Load preview data first.");
+          return true;
+        }
+        const headers = Object.keys(preview[0]);
+        const csvRows = [headers.join(",")];
+        for (const row of preview) {
+          csvRows.push(headers.map(h => {
+            const val = cell(row[h]);
+            return val.includes(",") || val.includes('"') ? `"${val.replace(/"/g, '""')}"` : val;
+          }).join(","));
+        }
+        const csvContent = csvRows.join("\n");
+        if (typeof navigator !== "undefined" && navigator.clipboard?.writeText) {
+          try {
+            await navigator.clipboard.writeText(csvContent);
+            appendAI(`CSV data copied to clipboard (${preview.length} rows, ${headers.length} columns). You can paste it into Excel or a CSV file.`);
+          } catch {
+            appendAI("Failed to copy CSV to clipboard.");
+          }
+        }
+        return true;
+      }
+
       return false;
     },
     [
       appendAI,
+      buildSmartReviewPrompt,
       copyToClipboard,
       createTaskFromValues,
       describePreviewRow,
@@ -1149,15 +1372,18 @@ export default function DashboardPage() {
       outputDraft,
       parseCreateTaskFromChat,
       preview,
+      readyCount,
       registry,
       resolveTask,
       reviewSelectedStudent,
+      reviewStudentData,
       runSmartAutopilot,
       runWorkflow,
       selectedRow,
       selectedRowData,
       selectedTask,
       setTaskActiveState,
+      stats,
       tasks,
       studentInsight,
     ]
@@ -1278,7 +1504,7 @@ export default function DashboardPage() {
           100 -
           studentInsight.inactivityDays * 4 +
           studentInsight.recentActivity.length * 3 +
-          studentInsight.overview.submissionsCount * 2
+          (studentInsight.overview?.submissionsCount ?? 0) * 2
         )
       )
     )
@@ -1378,7 +1604,7 @@ export default function DashboardPage() {
                       disabled={!selectedTask}
                       className="rounded-lg bg-primary px-4 py-2 text-xs font-bold uppercase tracking-wide text-background-dark transition hover:bg-primary/90 disabled:opacity-60"
                     >
-                      <FontAwesomeIcon icon={faPlay} className="mr-2" />
+                      <FontAwesomeIcon icon={faPlay as any} className="mr-2" />
                       Run Selected Task
                     </button>
                     <button
@@ -1436,25 +1662,25 @@ export default function DashboardPage() {
 
             <section className="grid grid-cols-2 gap-3 lg:grid-cols-4">
               <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-black/35 to-white/[0.02] p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-400"><FontAwesomeIcon icon={faTasks} className="mr-2 text-primary" />Classroom Tasks</p>
+                <p className="text-xs uppercase tracking-wide text-slate-400"><FontAwesomeIcon icon={faTasks as any} className="mr-2 text-primary" />Classroom Tasks</p>
                 <p className="mt-1 text-2xl font-bold">{tasks.length}</p>
                 <p className="text-xs text-slate-400">{readyCount} tasks ready to run</p>
                 <div className="mt-2 h-1.5 rounded-full bg-white/10"><div className="h-full rounded-full bg-primary" style={{ width: `${tasks.length ? Math.round((readyCount / tasks.length) * 100) : 0}%` }} /></div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-black/35 to-white/[0.02] p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-400"><FontAwesomeIcon icon={faDatabase} className="mr-2 text-cyan-300" />Student Rows</p>
+                <p className="text-xs uppercase tracking-wide text-slate-400"><FontAwesomeIcon icon={faDatabase as any} className="mr-2 text-cyan-300" />Student Rows</p>
                 <p className="mt-1 text-2xl font-bold">{preview.length}</p>
                 <p className="text-xs text-slate-400">{filteredPreview.length} shown after search</p>
                 <div className="mt-2 h-1.5 rounded-full bg-white/10"><div className="h-full rounded-full bg-cyan-400" style={{ width: `${filteredRatio}%` }} /></div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-black/35 to-white/[0.02] p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-400"><FontAwesomeIcon icon={faUsers} className="mr-2 text-emerald-300" />Students</p>
+                <p className="text-xs uppercase tracking-wide text-slate-400"><FontAwesomeIcon icon={faUsers as any} className="mr-2 text-emerald-300" />Students</p>
                 <p className="mt-1 text-2xl font-bold">{stats?.totalStudents ?? "--"}</p>
                 <p className="text-xs text-slate-400">Active now: {stats?.activeSessions ?? "--"}</p>
                 <div className="mt-2 h-1.5 rounded-full bg-white/10"><div className="h-full rounded-full bg-emerald-400" style={{ width: `${Math.min(100, Number((stats?.activeSessions ?? 0) / 5))}%` }} /></div>
               </div>
               <div className="rounded-2xl border border-white/10 bg-gradient-to-br from-black/35 to-white/[0.02] p-4">
-                <p className="text-xs uppercase tracking-wide text-slate-400"><FontAwesomeIcon icon={faGraduationCap} className="mr-2 text-amber-300" />Average Grade</p>
+                <p className="text-xs uppercase tracking-wide text-slate-400"><FontAwesomeIcon icon={faGraduationCap as any} className="mr-2 text-amber-300" />Average Grade</p>
                 <p className="mt-1 text-2xl font-bold">{stats ? `${stats.averageGrade}%` : "--"}</p>
                 <p className="text-xs text-slate-400">Courses {stats?.totalCourses ?? "--"}</p>
                 <div className="mt-2 h-1.5 rounded-full bg-white/10"><div className="h-full rounded-full bg-amber-400" style={{ width: `${Math.min(100, Number(stats?.averageGrade ?? 0))}%` }} /></div>
@@ -1479,7 +1705,7 @@ export default function DashboardPage() {
                   {classroomChecklist.map((item) => (
                     <div key={item.label} className="flex items-center justify-between rounded border border-white/10 bg-black/25 px-3 py-2 text-xs">
                       <span className="flex items-center gap-2 text-slate-300">
-                        <FontAwesomeIcon icon={item.done ? faCheckCircle : faExclamationTriangle} className={item.done ? "text-emerald-300" : "text-amber-300"} />
+                        <FontAwesomeIcon icon={(item.done ? faCheckCircle : faExclamationTriangle) as any} className={item.done ? "text-emerald-300" : "text-amber-300"} />
                         {item.label}
                       </span>
                       <span className="font-semibold text-slate-200">{item.value}</span>
@@ -1502,11 +1728,11 @@ export default function DashboardPage() {
                 <section className="rounded-2xl border border-white/10 bg-black/25 p-5">
                   <div className="mb-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                     <h2 className="text-lg font-bold">
-                      <FontAwesomeIcon icon={faTasks} className="mr-2 text-primary" />
+                      <FontAwesomeIcon icon={faTasks as any} className="mr-2 text-primary" />
                       Classroom Tasks
                     </h2>
                     <div className="relative">
-                      <FontAwesomeIcon icon={faFilter} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
+                      <FontAwesomeIcon icon={faFilter as any} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-slate-500" />
                       <input
                         value={taskFilter}
                         onChange={(e) => setTaskFilter(e.target.value)}
@@ -1563,31 +1789,31 @@ export default function DashboardPage() {
 
                 <section className="rounded-2xl border border-white/10 bg-black/25 p-5">
                   <div className="mb-3 flex items-center justify-between">
-                    <h2 className="text-lg font-bold"><FontAwesomeIcon icon={faDatabase} className="mr-2 text-cyan-400" />Student Work Table</h2>
+                    <h2 className="text-lg font-bold"><FontAwesomeIcon icon={faDatabase as any} className="mr-2 text-cyan-400" />Student Work Table</h2>
                     {selectedTask && (
                       <button onClick={() => void fetchPreview(selectedTask)} className="rounded border border-cyan-400/40 bg-cyan-500/10 px-3 py-2 text-xs text-cyan-200">
-                        {loadingPreview ? <><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading</> : "Reload"}
+                        {loadingPreview ? <><FontAwesomeIcon icon={faSpinner as any} spin className="mr-2" />Loading</> : "Reload"}
                       </button>
                     )}
                   </div>
                   {showAdvanced ? (
                     <div className="mb-3 grid gap-2 sm:grid-cols-3">
                       <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300">
-                        <FontAwesomeIcon icon={faSignal} className="mr-2 text-primary" />
+                        <FontAwesomeIcon icon={faSignal as any} className="mr-2 text-primary" />
                         Host {DB.host}:{DB.port}
                       </div>
                       <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300">
-                        <FontAwesomeIcon icon={faChartLine} className="mr-2 text-cyan-300" />
+                        <FontAwesomeIcon icon={faChartLine as any} className="mr-2 text-cyan-300" />
                         Coverage {filteredRatio}% ({filteredPreview.length}/{preview.length})
                       </div>
                       <div className="rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300">
-                        <FontAwesomeIcon icon={faDatabase} className="mr-2 text-emerald-300" />
+                        <FontAwesomeIcon icon={faDatabase as any} className="mr-2 text-emerald-300" />
                         DB {DB.database} / {cols.length} cols
                       </div>
                     </div>
                   ) : (
                     <div className="mb-3 rounded-lg border border-white/10 bg-black/30 px-3 py-2 text-xs text-slate-300">
-                      <FontAwesomeIcon icon={faCheckCircle} className="mr-2 text-primary" />
+                      <FontAwesomeIcon icon={faCheckCircle as any} className="mr-2 text-primary" />
                       {filteredPreview.length} students shown. Selected student: {selectedStudentName}
                     </div>
                   )}
@@ -1611,9 +1837,9 @@ export default function DashboardPage() {
                     Selected row: {selectedRowExcerpt}
                   </p>
                   {loadingPreview ? (
-                    <div className="rounded-xl border border-white/10 bg-black/20 p-8 text-center text-slate-400"><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading preview...</div>
+                    <div className="rounded-xl border border-white/10 bg-black/20 p-8 text-center text-slate-400"><FontAwesomeIcon icon={faSpinner as any} spin className="mr-2" />Loading preview...</div>
                   ) : previewError ? (
-                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300"><FontAwesomeIcon icon={faExclamationTriangle} className="mr-2" />{previewError}</div>
+                    <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-sm text-amber-300"><FontAwesomeIcon icon={faExclamationTriangle as any} className="mr-2" />{previewError}</div>
                   ) : filteredPreview.length === 0 ? (
                     <div className="rounded-xl border border-white/10 bg-black/20 p-8 text-center text-slate-400">No preview data.</div>
                   ) : (
@@ -1637,7 +1863,7 @@ export default function DashboardPage() {
                 <section className="rounded-2xl border border-white/10 bg-black/25 p-5">
                   <div className="mb-3 flex items-center justify-between">
                     <h2 className="text-lg font-bold">
-                      <FontAwesomeIcon icon={faFileCode} className="mr-2 text-indigo-300" />
+                      <FontAwesomeIcon icon={faFileCode as any} className="mr-2 text-indigo-300" />
                       Student Detail Sheet
                     </h2>
                     {selectedRowData && (
@@ -1672,9 +1898,9 @@ export default function DashboardPage() {
 
               <div className="space-y-5 xl:col-span-4">
                 <section className="glass-panel rounded-2xl border border-white/10 p-5">
-                  <h2 className="mb-2 text-lg font-bold"><FontAwesomeIcon icon={faUsers} className="mr-2 text-blue-300" />Student Profile</h2>
+                  <h2 className="mb-2 text-lg font-bold"><FontAwesomeIcon icon={faUsers as any} className="mr-2 text-blue-300" />Student Profile</h2>
                   {studentInsightLoading ? (
-                    <p className="text-sm text-slate-400"><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Loading student details...</p>
+                    <p className="text-sm text-slate-400"><FontAwesomeIcon icon={faSpinner as any} spin className="mr-2" />Loading student details...</p>
                   ) : studentInsightError ? (
                     <p className="rounded border border-amber-500/25 bg-amber-500/10 px-2 py-1 text-xs text-amber-300">{studentInsightError}</p>
                   ) : studentInsight?.overview ? (
@@ -1728,7 +1954,7 @@ export default function DashboardPage() {
                 </section>
 
                 <section className="glass-panel rounded-2xl border border-white/10 p-5">
-                  <h2 className="mb-2 text-lg font-bold"><FontAwesomeIcon icon={faChartLine} className="mr-2 text-cyan-300" />Recent Student Progress</h2>
+                  <h2 className="mb-2 text-lg font-bold"><FontAwesomeIcon icon={faChartLine as any} className="mr-2 text-cyan-300" />Recent Student Progress</h2>
                   {!studentInsight?.overview ? (
                     <p className="text-xs text-slate-400">Select a student to view recent grades and activity.</p>
                   ) : (
@@ -1788,7 +2014,7 @@ export default function DashboardPage() {
                 </section>
 
                 <section className="glass-panel rounded-2xl border border-white/10 p-5">
-                  <h2 className="mb-2 text-lg font-bold"><FontAwesomeIcon icon={faCheckCircle} className="mr-2 text-green-400" />Review Selected Student</h2>
+                  <h2 className="mb-2 text-lg font-bold"><FontAwesomeIcon icon={faCheckCircle as any} className="mr-2 text-green-400" />Review Selected Student</h2>
                   <p className="mb-2 text-xs text-slate-300">{selectedRowData ? selectedRowExcerpt : "No student row selected."}</p>
                   <div className="mb-2 flex flex-wrap gap-2">
                     <button
@@ -1813,13 +2039,13 @@ export default function DashboardPage() {
                   <textarea value={reviewPrompt} onChange={(e) => setReviewPrompt(e.target.value)} rows={4} className="mb-2 w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm outline-none focus:border-primary/40" />
                   {reviewError && <p className="mb-2 text-xs text-red-300">{reviewError}</p>}
                   <button onClick={() => void reviewSelectedStudent()} disabled={reviewBusy || !selectedTask || !selectedRowData} className="w-full rounded bg-primary px-3 py-2 text-sm font-bold text-background-dark disabled:opacity-60">
-                    {reviewBusy ? <><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Reviewing...</> : "Review Student with AI"}
+                    {reviewBusy ? <><FontAwesomeIcon icon={faSpinner as any} spin className="mr-2" />Reviewing...</> : "Review Student with AI"}
                   </button>
                 </section>
 
                 <section className="glass-panel rounded-2xl border border-white/10 p-5">
                   <div className="mb-2 flex items-center justify-between">
-                    <h2 className="text-lg font-bold"><FontAwesomeIcon icon={faCog} className="mr-2 text-amber-300" />Feedback Editor</h2>
+                    <h2 className="text-lg font-bold"><FontAwesomeIcon icon={faCog as any} className="mr-2 text-amber-300" />Feedback Editor</h2>
                     {savedAt && <span className="text-xs text-slate-400">Saved {savedAt}</span>}
                   </div>
                   <div className="mb-2 flex items-center justify-between rounded border border-white/10 bg-black/25 px-3 py-2 text-xs">
@@ -1847,21 +2073,21 @@ export default function DashboardPage() {
 
                 {showAdvanced && (
                   <section className="glass-panel rounded-2xl border border-white/10 p-5">
-                    <h2 className="mb-2 text-lg font-bold"><FontAwesomeIcon icon={faPlus} className="mr-2 text-primary" />Create Custom Task (Advanced)</h2>
+                    <h2 className="mb-2 text-lg font-bold"><FontAwesomeIcon icon={faPlus as any} className="mr-2 text-primary" />Create Custom Task (Advanced)</h2>
                     <input value={newTask.title} onChange={(e) => setNewTask((v) => ({ ...v, title: e.target.value }))} placeholder="Task title (optional)" className="mb-2 w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
                     <input value={newTask.icon} onChange={(e) => setNewTask((v) => ({ ...v, icon: e.target.value }))} placeholder="Task code/icon" className="mb-2 w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
                     <textarea value={newTask.description} onChange={(e) => setNewTask((v) => ({ ...v, description: e.target.value }))} rows={2} placeholder="Description (required)" className="mb-2 w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
                     <textarea value={newTask.prompt} onChange={(e) => setNewTask((v) => ({ ...v, prompt: e.target.value }))} rows={3} placeholder="AI prompt (required)" className="mb-2 w-full rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
                     {createErr && <p className="mb-2 text-xs text-red-300">{createErr}</p>}
                     <button onClick={() => void createTask()} disabled={creating} className="w-full rounded bg-primary px-3 py-2 text-sm font-bold text-background-dark disabled:opacity-60">
-                      {creating ? <><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Generating...</> : "Create Task + JSON Workflow"}
+                      {creating ? <><FontAwesomeIcon icon={faSpinner as any} spin className="mr-2" />Generating...</> : "Create Task + JSON Workflow"}
                     </button>
                   </section>
                 )}
               </div>
             </div>
 
-            {statsError && <section className="rounded border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-300"><FontAwesomeIcon icon={faExclamationTriangle} className="mr-2" />{statsError}</section>}
+            {statsError && <section className="rounded border border-amber-500/25 bg-amber-500/10 p-3 text-sm text-amber-300"><FontAwesomeIcon icon={faExclamationTriangle as any} className="mr-2" />{statsError}</section>}
 
             <section className="glass-panel rounded-2xl border border-white/10 p-5 lg:hidden">
               <h2 className="mb-2 text-lg font-bold">AI Assistant</h2>
@@ -1877,7 +2103,7 @@ export default function DashboardPage() {
               </div>
               <div className="mt-2 flex gap-2">
                 <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void sendChat(); }} placeholder='Type "help commands" to control dashboard' className="flex-1 rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
-                <button onClick={() => void sendChat()} disabled={assistantBusy} className="rounded bg-primary px-4 py-2 text-background-dark disabled:opacity-60"><FontAwesomeIcon icon={faPaperPlane} /></button>
+                <button onClick={() => void sendChat()} disabled={assistantBusy} className="rounded bg-primary px-4 py-2 text-background-dark disabled:opacity-60"><FontAwesomeIcon icon={faPaperPlane as any} /></button>
               </div>
             </section>
           </div>
@@ -1897,12 +2123,12 @@ export default function DashboardPage() {
                 </div>
               </div>
             ))}
-            {assistantBusy && <div className="text-sm text-slate-400"><FontAwesomeIcon icon={faSpinner} spin className="mr-2" />Thinking...</div>}
+            {assistantBusy && <div className="text-sm text-slate-400"><FontAwesomeIcon icon={faSpinner as any} spin className="mr-2" />Thinking...</div>}
           </div>
           <div className="border-t border-white/10 p-4">
             <div className="flex gap-2">
               <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void sendChat(); }} placeholder='Type "help commands" to control dashboard' className="flex-1 rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
-              <button onClick={() => void sendChat()} disabled={assistantBusy} className="rounded bg-primary px-4 py-2 text-background-dark disabled:opacity-60"><FontAwesomeIcon icon={faPaperPlane} /></button>
+              <button onClick={() => void sendChat()} disabled={assistantBusy} className="rounded bg-primary px-4 py-2 text-background-dark disabled:opacity-60"><FontAwesomeIcon icon={faPaperPlane as any} /></button>
             </div>
           </div>
         </aside>
@@ -1912,3 +2138,5 @@ export default function DashboardPage() {
     </div>
   );
 }
+
+

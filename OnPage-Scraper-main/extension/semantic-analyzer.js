@@ -131,7 +131,7 @@ class SemanticAnalyzer {
                     count: elements.length,
                     elements: Array.from(elements).map(el => ({
                         id: el.id || null,
-                        classes: el.className || null,
+                        classes: typeof el.className === 'string' ? el.className : '',
                         text: el.textContent?.substring(0, 100) || null
                     }))
                 };
@@ -205,7 +205,7 @@ class SemanticAnalyzer {
         const node = {
             tag: element.tagName?.toLowerCase(),
             id: element.id || null,
-            classes: element.className || null,
+            classes: typeof element.className === 'string' ? element.className : '',
             role: element.getAttribute('role') || null,
             children: []
         };
@@ -256,7 +256,7 @@ class SemanticAnalyzer {
                             selector: selector,
                             tag: el.tagName.toLowerCase(),
                             id: el.id || null,
-                            classes: el.className || null,
+                            classes: typeof el.className === 'string' ? el.className : '',
                             childrenCount: el.children.length,
                             textLength: el.textContent?.length || 0
                         });
@@ -271,41 +271,153 @@ class SemanticAnalyzer {
     }
 
     /**
-     * كشف الأنماط المتكررة
+     * كشف الأنماط المتكررة - محسّن بالبصمة الهيكلية
      */
     detectRepeatingPatterns() {
         const patterns = [];
 
-        // البحث عن العناصر المتكررة
+        // Static patterns to check
         const commonPatterns = [
-            '.item',
-            '.card',
-            '.product',
-            '.post',
-            '.article',
-            'li',
-            'tr',
-            '[class*="item"]',
-            '[class*="card"]',
-            '[class*="product"]'
+            '.item', '.card', '.product', '.post', '.article',
+            '.row', '.entry', '.block', '.tile', '.result',
+            '.student', '.answer', '.question', '.grade',
+            'li', 'tr',
+            '[class*="item"]', '[class*="card"]', '[class*="product"]',
+            '[class*="row"]', '[class*="entry"]', '[class*="student"]',
+            '[data-student-row]', '[data-item]', '[data-row]',
+            'article', 'section > div'
         ];
+
+        const found = new Set();
 
         commonPatterns.forEach(pattern => {
             try {
                 const elements = document.querySelectorAll(pattern);
-                if (elements.length >= 3) { // على الأقل 3 عناصر متكررة
-                    patterns.push({
-                        selector: pattern,
-                        count: elements.length,
-                        sample: this.extractSampleData(elements[0])
-                    });
+                if (elements.length >= 2) {
+                    const key = `${pattern}_${elements.length}`;
+                    if (!found.has(key)) {
+                        found.add(key);
+                        patterns.push({
+                            selector: pattern,
+                            count: elements.length,
+                            sample: this.extractSampleData(elements[0]),
+                            fingerprint: this.generateStructuralFingerprint(elements[0])
+                        });
+                    }
                 }
-            } catch (e) {
-                // تجاهل الأخطاء
-            }
+            } catch (e) {}
         });
 
+        // Dynamic detection: find groups of sibling elements with same structure
+        this.detectSiblingPatterns(patterns, found);
+
         return patterns;
+    }
+
+    /**
+     * Detect patterns among sibling elements that share the same structural fingerprint
+     */
+    detectSiblingPatterns(patterns, found) {
+        const containers = document.querySelectorAll('div, section, main, article, ul, ol, tbody, thead');
+        const MAX_CONTAINERS = 100;
+        let checked = 0;
+
+        for (const container of containers) {
+            if (checked >= MAX_CONTAINERS) break;
+            checked++;
+
+            const children = Array.from(container.children);
+            if (children.length < 3) continue; // Need at least 3 siblings to detect a pattern
+
+            // Group by tagName
+            const tagGroups = {};
+            children.forEach(child => {
+                const tag = child.tagName.toLowerCase();
+                if (!tagGroups[tag]) tagGroups[tag] = [];
+                tagGroups[tag].push(child);
+            });
+
+            for (const [tag, group] of Object.entries(tagGroups)) {
+                if (group.length < 3) continue;
+
+                // Check structural similarity
+                const fp0 = this.generateStructuralFingerprint(group[0]);
+                const allSimilar = group.every(el => {
+                    const fp = this.generateStructuralFingerprint(el);
+                    return this.fingerprintSimilarity(fp0, fp) > 0.7;
+                });
+
+                if (allSimilar) {
+                    // Build a selector for this group
+                    let selector = '';
+                    const parentId = container.id;
+                    const parentClass = typeof container.className === 'string' ? container.className.split(/\s+/)[0] : '';
+
+                    if (parentId) selector = `#${parentId} > ${tag}`;
+                    else if (parentClass) selector = `.${parentClass} > ${tag}`;
+                    else selector = `${container.tagName.toLowerCase()} > ${tag}`;
+
+                    const key = `${selector}_${group.length}`;
+                    if (!found.has(key)) {
+                        found.add(key);
+                        patterns.push({
+                            selector,
+                            count: group.length,
+                            sample: this.extractSampleData(group[0]),
+                            fingerprint: fp0,
+                            detectionMethod: 'structural-fingerprint'
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * Generate a structural fingerprint of an element
+     */
+    generateStructuralFingerprint(element) {
+        if (!element) return '';
+
+        const parts = [];
+        const tag = element.tagName?.toLowerCase() || '';
+        parts.push(tag);
+        parts.push(`children:${element.children.length}`);
+
+        // Capture child tag distribution
+        const childTags = {};
+        Array.from(element.children).forEach(child => {
+            const ct = child.tagName.toLowerCase();
+            childTags[ct] = (childTags[ct] || 0) + 1;
+        });
+
+        const sortedTags = Object.entries(childTags).sort((a, b) => a[0].localeCompare(b[0]));
+        sortedTags.forEach(([t, c]) => parts.push(`${t}:${c}`));
+
+        // Include class count and text length range
+        const classCount = typeof element.className === 'string' ? element.className.split(/\s+/).filter(Boolean).length : 0;
+        parts.push(`cls:${classCount}`);
+
+        const textLen = element.textContent?.trim().length || 0;
+        const lenBucket = textLen < 50 ? 'xs' : textLen < 200 ? 'sm' : textLen < 1000 ? 'md' : textLen < 5000 ? 'lg' : 'xl';
+        parts.push(`len:${lenBucket}`);
+
+        return parts.join('|');
+    }
+
+    /**
+     * Calculate similarity between two structural fingerprints
+     */
+    fingerprintSimilarity(fp1, fp2) {
+        if (!fp1 || !fp2) return 0;
+        if (fp1 === fp2) return 1;
+
+        const parts1 = new Set(fp1.split('|'));
+        const parts2 = new Set(fp2.split('|'));
+        const intersection = [...parts1].filter(p => parts2.has(p));
+        const union = new Set([...parts1, ...parts2]);
+
+        return intersection.length / union.size;
     }
 
     /**
@@ -732,7 +844,7 @@ class SemanticAnalyzer {
     }
 
     /**
-     * تحليل الجداول
+     * تحليل الجداول - محسّن للجداول المعقدة
      */
     analyzeTables() {
         const tables = [];
@@ -740,25 +852,84 @@ class SemanticAnalyzer {
         document.querySelectorAll('table').forEach((table, index) => {
             const tableData = {
                 id: table.id || `table_${index}`,
+                ariaLabel: table.getAttribute('aria-label') || '',
+                caption: table.querySelector('caption')?.textContent?.trim() || '',
                 rows: table.rows.length,
                 columns: table.rows[0]?.cells.length || 0,
                 headers: [],
-                sample: []
+                headerGroups: [],
+                sample: [],
+                hasNestedTable: table.querySelector('table') !== null,
+                hasMergedCells: false,
+                dataAttributes: {}
             };
 
-            // استخراج الرؤوس
-            const headerRow = table.querySelector('thead tr, tr:first-child');
-            if (headerRow) {
-                tableData.headers = Array.from(headerRow.cells).map(cell =>
-                    cell.textContent?.trim() || ''
-                );
+            // Extract data-* from table tag
+            Array.from(table.attributes).forEach(attr => {
+                if (attr.name.startsWith('data-')) {
+                    tableData.dataAttributes[attr.name] = attr.value;
+                }
+            });
+
+            // Extract headers (support multi-level headers)
+            const theadRows = table.querySelectorAll('thead tr');
+            if (theadRows.length > 0) {
+                theadRows.forEach(headerRow => {
+                    const rowHeaders = Array.from(headerRow.cells).map(cell => {
+                        const colspan = parseInt(cell.getAttribute('colspan') || '1');
+                        const rowspan = parseInt(cell.getAttribute('rowspan') || '1');
+                        if (colspan > 1 || rowspan > 1) tableData.hasMergedCells = true;
+                        return {
+                            text: cell.textContent?.trim() || '',
+                            colspan,
+                            rowspan,
+                            scope: cell.getAttribute('scope') || ''
+                        };
+                    });
+                    tableData.headerGroups.push(rowHeaders);
+                });
+                // Flatten for backwards compatibility
+                if (tableData.headerGroups.length > 0) {
+                    tableData.headers = tableData.headerGroups[tableData.headerGroups.length - 1].map(h => h.text);
+                }
+            } else {
+                // Fallback: first row as headers
+                const firstRow = table.querySelector('tr');
+                if (firstRow) {
+                    tableData.headers = Array.from(firstRow.cells).map(cell =>
+                        cell.textContent?.trim() || ''
+                    );
+                }
             }
 
-            // استخراج عينة من البيانات (أول 3 صفوف)
-            const dataRows = Array.from(table.querySelectorAll('tbody tr, tr')).slice(0, 3);
-            tableData.sample = dataRows.map(row =>
-                Array.from(row.cells).map(cell => cell.textContent?.trim() || '')
-            );
+            // Check for merged cells in body
+            table.querySelectorAll('td[colspan], td[rowspan], th[colspan], th[rowspan]').forEach(cell => {
+                const cs = parseInt(cell.getAttribute('colspan') || '1');
+                const rs = parseInt(cell.getAttribute('rowspan') || '1');
+                if (cs > 1 || rs > 1) tableData.hasMergedCells = true;
+            });
+
+            // Sample data (first 5 rows)
+            const dataRows = Array.from(table.querySelectorAll('tbody tr, tr')).slice(0, 5);
+            tableData.sample = dataRows.map(row => {
+                const rowInfo = {
+                    cells: Array.from(row.cells).map(cell => {
+                        const text = cell.textContent?.trim() || '';
+                        return {
+                            text: text.substring(0, 200),
+                            tag: cell.tagName.toLowerCase(),
+                            colspan: parseInt(cell.getAttribute('colspan') || '1'),
+                            classes: typeof cell.className === 'string' ? cell.className : ''
+                        };
+                    }),
+                    data: {}
+                };
+                // Include data-* from row
+                if (row.dataset) {
+                    Object.keys(row.dataset).forEach(k => rowInfo.data[k] = row.dataset[k]);
+                }
+                return rowInfo;
+            });
 
             tables.push(tableData);
         });
@@ -767,19 +938,60 @@ class SemanticAnalyzer {
     }
 
     /**
-     * تحليل القوائم
+     * تحليل القوائم - محسّن للقوائم المتداخلة
      */
     analyzeLists() {
         const lists = [];
 
-        document.querySelectorAll('ul, ol').forEach((list, index) => {
+        document.querySelectorAll('ul, ol, dl').forEach((list, index) => {
+            // Skip nested lists (only process top-level)
+            if (list.parentElement?.closest('ul, ol, dl')) return;
+
             const listData = {
                 id: list.id || `list_${index}`,
                 type: list.tagName.toLowerCase(),
-                items: Array.from(list.querySelectorAll('li')).map(li =>
-                    li.textContent?.trim().substring(0, 100) || ''
-                ).slice(0, 10) // أول 10 عناصر
+                itemCount: 0,
+                hasNestedLists: false,
+                items: [],
+                ariaLabel: list.getAttribute('aria-label') || '',
+                role: list.getAttribute('role') || ''
             };
+
+            if (list.tagName.toLowerCase() === 'dl') {
+                // Definition list
+                const dts = list.querySelectorAll(':scope > dt');
+                listData.itemCount = dts.length;
+                dts.forEach((dt, dtIdx) => {
+                    if (dtIdx >= 20) return;
+                    const dd = dt.nextElementSibling;
+                    listData.items.push({
+                        term: dt.textContent?.trim().substring(0, 100) || '',
+                        definition: dd?.tagName?.toLowerCase() === 'dd' ? dd.textContent?.trim().substring(0, 200) : ''
+                    });
+                });
+            } else {
+                const lis = list.querySelectorAll(':scope > li');
+                listData.itemCount = lis.length;
+                lis.forEach((li, liIdx) => {
+                    if (liIdx >= 20) return;
+                    const nested = li.querySelector('ul, ol');
+                    if (nested) listData.hasNestedLists = true;
+
+                    const text = nested ?
+                        li.textContent?.trim().replace(nested.textContent?.trim(), '').trim() :
+                        li.textContent?.trim();
+
+                    listData.items.push({
+                        text: (text || '').substring(0, 200),
+                        hasNested: !!nested,
+                        nestedCount: nested ? nested.querySelectorAll(':scope > li').length : 0,
+                        links: Array.from(li.querySelectorAll('a')).slice(0, 5).map(a => ({
+                            text: a.textContent?.trim().substring(0, 100),
+                            href: a.href
+                        }))
+                    });
+                });
+            }
 
             if (listData.items.length > 0) {
                 lists.push(listData);
@@ -790,30 +1002,98 @@ class SemanticAnalyzer {
     }
 
     /**
-     * كشف المحتوى الرئيسي
+     * كشف المحتوى الرئيسي - محسّن بنظام تسجيل النقاط
      */
     detectMainContent() {
-        // البحث عن المحتوى الرئيسي
-        const mainSelectors = [
-            'main',
-            '[role="main"]',
-            '#main',
-            '.main',
-            '#content',
-            '.content',
-            'article'
+        // Score-based main content detection
+        const candidates = [];
+
+        // Priority selectors
+        const prioritySelectors = [
+            { sel: 'main', score: 100 },
+            { sel: '[role="main"]', score: 95 },
+            { sel: '#main-content', score: 90 },
+            { sel: '#content', score: 85 },
+            { sel: '.main-content', score: 80 },
+            { sel: '.content', score: 75 },
+            { sel: 'article', score: 70 },
+            { sel: '#main', score: 65 },
+            { sel: '.main', score: 60 },
+            { sel: '.container', score: 50 },
+            { sel: '.wrapper', score: 45 },
+            { sel: '.page-content', score: 55 },
+            { sel: '[class*="content"]', score: 40 },
+            { sel: '[class*="body"]', score: 35 }
         ];
 
-        for (const selector of mainSelectors) {
-            const element = document.querySelector(selector);
-            if (element) {
-                return {
-                    selector: selector,
-                    tag: element.tagName.toLowerCase(),
-                    textLength: element.textContent?.length || 0,
-                    childrenCount: element.children.length
-                };
+        for (const { sel, score } of prioritySelectors) {
+            try {
+                const elements = document.querySelectorAll(sel);
+                elements.forEach(element => {
+                    const textLen = element.textContent?.trim().length || 0;
+                    const childCount = element.children.length;
+
+                    // Prioritize elements with substantial content
+                    let finalScore = score;
+                    if (textLen > 500) finalScore += 20;
+                    if (textLen > 2000) finalScore += 30;
+                    if (childCount > 5) finalScore += 10;
+
+                    // Penalize nav/header/footer elements
+                    const tag = element.tagName.toLowerCase();
+                    if (['nav', 'header', 'footer', 'aside'].includes(tag)) finalScore -= 50;
+
+                    candidates.push({
+                        selector: sel,
+                        element,
+                        tag,
+                        textLength: textLen,
+                        childrenCount: childCount,
+                        score: finalScore,
+                        id: element.id || null,
+                        classes: typeof element.className === 'string' ? element.className : ''
+                    });
+                });
+            } catch (_) {}
+        }
+
+        // Sort by score descending
+        candidates.sort((a, b) => b.score - a.score);
+
+        if (candidates.length > 0) {
+            const best = candidates[0];
+            return {
+                selector: best.selector,
+                tag: best.tag,
+                textLength: best.textLength,
+                childrenCount: best.childrenCount,
+                score: best.score,
+                id: best.id,
+                classes: best.classes,
+                alternativesCount: candidates.length
+            };
+        }
+
+        // Heuristic: largest text-bearing container
+        let bestDiv = null;
+        let bestTextLen = 0;
+        document.querySelectorAll('div, section').forEach(el => {
+            const len = el.textContent?.trim().length || 0;
+            if (len > bestTextLen && el.children.length >= 3) {
+                bestTextLen = len;
+                bestDiv = el;
             }
+        });
+
+        if (bestDiv) {
+            return {
+                selector: bestDiv.id ? `#${bestDiv.id}` : bestDiv.tagName.toLowerCase(),
+                tag: bestDiv.tagName.toLowerCase(),
+                textLength: bestTextLen,
+                childrenCount: bestDiv.children.length,
+                score: 30,
+                detectionMethod: 'heuristic-largest-container'
+            };
         }
 
         return null;
@@ -857,7 +1137,7 @@ class SemanticAnalyzer {
     extractSampleData(element) {
         return {
             text: element.textContent?.trim().substring(0, 100) || '',
-            classes: element.className || null,
+            classes: typeof element.className === 'string' ? element.className : '',
             childrenCount: element.children.length
         };
     }

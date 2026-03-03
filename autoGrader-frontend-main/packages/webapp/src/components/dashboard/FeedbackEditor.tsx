@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSpinner, faSave, faCopy } from "@fortawesome/free-solid-svg-icons";
 
@@ -50,7 +50,7 @@ export default function FeedbackEditor({
         >
           {reviewBusy ? (
             <>
-              <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />
+              <FontAwesomeIcon icon={faSpinner as any} spin className="mr-2" />
               Reviewing...
             </>
           ) : (
@@ -86,7 +86,7 @@ export default function FeedbackEditor({
             disabled={!outputDraft.trim()}
             className="px-3 py-1 bg-gray-500 text-white rounded hover:bg-gray-600 disabled:opacity-50 text-sm"
           >
-            <FontAwesomeIcon icon={faCopy} className="mr-1" />
+            <FontAwesomeIcon icon={faCopy as any} className="mr-1" />
             Copy
           </button>
           <button
@@ -94,7 +94,7 @@ export default function FeedbackEditor({
             disabled={!outputDraft.trim()}
             className="px-3 py-1 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 text-sm"
           >
-            <FontAwesomeIcon icon={faSave} className="mr-1" />
+            <FontAwesomeIcon icon={faSave as any} className="mr-1" />
             Save Draft
           </button>
         </div>
@@ -102,3 +102,4 @@ export default function FeedbackEditor({
     </div>
   );
 }
+

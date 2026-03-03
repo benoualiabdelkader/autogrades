@@ -112,7 +112,7 @@ class SmartExtractor {
     }
 
     /**
-     * استخراج البيانات من عنصر واحد
+     * استخراج البيانات من عنصر واحد - محسّن للصفحات المعقدة
      */
     extractElementData(element, fieldName, id) {
         const data = {
@@ -120,7 +120,8 @@ class SmartExtractor {
             fieldName: fieldName,
             type: this.detectElementType(element),
             value: null,
-            metadata: {}
+            metadata: {},
+            children: []
         };
 
         // استخراج القيمة حسب نوع العنصر
@@ -128,25 +129,85 @@ class SmartExtractor {
             case 'input':
                 data.value = element.value || element.placeholder || '';
                 data.metadata.inputType = element.type;
+                data.metadata.name = element.name || '';
+                data.metadata.required = element.required;
                 break;
 
             case 'textarea':
                 data.value = element.value || '';
+                data.metadata.name = element.name || '';
                 break;
 
             case 'select':
                 data.value = element.value || '';
-                data.metadata.selectedText = element.options[element.selectedIndex]?.text || '';
+                data.metadata.selectedText = element.options?.[element.selectedIndex]?.text || '';
+                data.metadata.allOptions = Array.from(element.options || []).map(o => ({ value: o.value, text: o.text }));
                 break;
 
             case 'image':
-                data.value = element.src || element.dataset.src || '';
+                data.value = element.src || element.dataset.src || element.getAttribute('data-lazy-src') || '';
                 data.metadata.alt = element.alt || '';
+                data.metadata.srcset = element.srcset || '';
+                data.metadata.naturalWidth = element.naturalWidth;
+                data.metadata.naturalHeight = element.naturalHeight;
                 break;
 
             case 'link':
                 data.value = element.href || '';
                 data.metadata.text = this.cleanText(element.textContent);
+                data.metadata.target = element.target || '';
+                data.metadata.rel = element.rel || '';
+                break;
+
+            case 'table':
+                data.value = this.extractFullTableData(element);
+                data.metadata.rows = element.rows?.length || 0;
+                data.metadata.cols = element.rows?.[0]?.cells?.length || 0;
+                break;
+
+            case 'list':
+                data.value = this.extractListData(element);
+                data.metadata.itemCount = element.querySelectorAll(':scope > li, :scope > dt').length;
+                break;
+
+            case 'media':
+                data.value = element.src || element.querySelector('source')?.src || '';
+                data.metadata.duration = element.duration || null;
+                data.metadata.poster = element.poster || '';
+                break;
+
+            case 'heading':
+                data.value = this.cleanText(element.textContent);
+                data.metadata.level = parseInt(element.tagName[1]);
+                break;
+
+            case 'iframe':
+                data.value = element.src || '';
+                data.metadata.title = element.title || '';
+                // Try to extract iframe content if same-origin
+                try {
+                    const iframeDoc = element.contentDocument;
+                    if (iframeDoc) {
+                        data.metadata.iframeContent = iframeDoc.body?.textContent?.trim()?.substring(0, 5000) || '';
+                    }
+                } catch (_) {
+                    data.metadata.iframeContent = '[cross-origin iframe]';
+                }
+                break;
+
+            case 'code':
+                data.value = element.textContent || '';
+                data.metadata.language = element.className?.match(/language-(\w+)/)?.[1] || '';
+                break;
+
+            case 'form':
+                data.value = this.extractFormData(element);
+                data.metadata.action = element.action || '';
+                data.metadata.method = element.method || 'get';
+                break;
+
+            case 'editable':
+                data.value = element.innerHTML || element.textContent || '';
                 break;
 
             case 'text':
@@ -156,15 +217,152 @@ class SmartExtractor {
         }
 
         // استخراج البيانات الإضافية
-        data.metadata.className = element.className;
+        data.metadata.tagName = element.tagName?.toLowerCase();
+        data.metadata.className = typeof element.className === 'string' ? element.className : '';
         data.metadata.id = element.id;
         data.metadata.dataAttributes = this.extractDataAttributes(element);
+        data.metadata.ariaLabel = element.getAttribute('aria-label') || '';
+        data.metadata.role = element.getAttribute('role') || '';
+
+        // Extract children data for complex containers
+        if (element.children.length > 0 && ['div', 'section', 'article', 'main'].includes(element.tagName?.toLowerCase())) {
+            data.children = this.extractChildrenSummary(element);
+        }
 
         return data;
     }
 
     /**
-     * كشف نوع العنصر
+     * Extract full table data as structured object
+     */
+    extractFullTableData(table) {
+        const result = { headers: [], rows: [] };
+
+        // Extract headers
+        const headerRow = table.querySelector('thead tr') || table.querySelector('tr');
+        if (headerRow) {
+            result.headers = Array.from(headerRow.querySelectorAll('th, td')).map(cell => {
+                const text = cell.textContent?.trim() || '';
+                const colspan = parseInt(cell.getAttribute('colspan') || '1');
+                return { text, colspan };
+            });
+        }
+
+        // Extract body rows
+        const bodyRows = table.querySelectorAll('tbody tr');
+        const rows = bodyRows.length > 0 ? bodyRows : table.querySelectorAll('tr');
+        const MAX_ROWS = 1000;
+        let count = 0;
+
+        rows.forEach(row => {
+            if (row === headerRow || count >= MAX_ROWS) return;
+            count++;
+
+            const cells = Array.from(row.querySelectorAll('td, th')).map(cell => {
+                const text = cell.textContent?.trim() || '';
+                const colspan = parseInt(cell.getAttribute('colspan') || '1');
+                const rowspan = parseInt(cell.getAttribute('rowspan') || '1');
+                return { text, colspan, rowspan };
+            });
+
+            // Include data-* attributes from the row
+            const rowData = {};
+            if (row.dataset) {
+                Object.keys(row.dataset).forEach(k => rowData[k] = row.dataset[k]);
+            }
+
+            result.rows.push({ cells, data: rowData });
+        });
+
+        return result;
+    }
+
+    /**
+     * Extract list data as structured array
+     */
+    extractListData(listEl) {
+        const tag = listEl.tagName.toLowerCase();
+        if (tag === 'dl') {
+            const items = [];
+            listEl.querySelectorAll('dt').forEach(dt => {
+                const dd = dt.nextElementSibling;
+                items.push({
+                    term: dt.textContent?.trim() || '',
+                    definition: dd?.tagName?.toLowerCase() === 'dd' ? dd.textContent?.trim() : ''
+                });
+            });
+            return items;
+        }
+
+        return Array.from(listEl.querySelectorAll(':scope > li')).map((li, i) => {
+            const nested = li.querySelector('ul, ol');
+            return {
+                index: i,
+                text: nested ?
+                    li.textContent?.trim().replace(nested.textContent?.trim(), '').trim() :
+                    li.textContent?.trim() || '',
+                nested: nested ? this.extractListData(nested) : null,
+                links: Array.from(li.querySelectorAll('a')).map(a => ({ text: a.textContent?.trim(), href: a.href }))
+            };
+        });
+    }
+
+    /**
+     * Extract form data with all field values
+     */
+    extractFormData(form) {
+        const fields = [];
+        form.querySelectorAll('input, textarea, select').forEach(field => {
+            fields.push({
+                name: field.name || field.id || '',
+                type: field.type || 'text',
+                value: field.value || '',
+                label: this.findFieldLabel(field),
+                required: field.required,
+                placeholder: field.placeholder || ''
+            });
+        });
+        return fields;
+    }
+
+    /**
+     * Find label text for a form field
+     */
+    findFieldLabel(field) {
+        if (field.id) {
+            const label = document.querySelector(`label[for="${field.id}"]`);
+            if (label) return label.textContent?.trim();
+        }
+        const parentLabel = field.closest('label');
+        if (parentLabel) return parentLabel.textContent?.trim();
+        return field.getAttribute('aria-label') || field.placeholder || '';
+    }
+
+    /**
+     * Extract summary of children for complex containers
+     */
+    extractChildrenSummary(element) {
+        const MAX_CHILDREN = 50;
+        const children = [];
+        const directChildren = Array.from(element.children).slice(0, MAX_CHILDREN);
+
+        directChildren.forEach(child => {
+            const tag = child.tagName.toLowerCase();
+            if (['script', 'style', 'noscript', 'svg'].includes(tag)) return;
+
+            children.push({
+                tag,
+                id: child.id || '',
+                class: typeof child.className === 'string' ? child.className : '',
+                text: (child.textContent?.trim() || '').substring(0, 200)
+            });
+        });
+
+        return children;
+    }
+
+    /**
+     * كشف نوع العنصر بشكل أكثر دقة
      */
     detectElementType(element) {
         const tagName = element.tagName.toLowerCase();
@@ -172,27 +370,164 @@ class SmartExtractor {
         if (tagName === 'input') return 'input';
         if (tagName === 'textarea') return 'textarea';
         if (tagName === 'select') return 'select';
-        if (tagName === 'img') return 'image';
+        if (tagName === 'img' || tagName === 'picture' || tagName === 'svg') return 'image';
         if (tagName === 'a') return 'link';
-        if (tagName === 'button') return 'button';
+        if (tagName === 'button' || (element.getAttribute('role') === 'button')) return 'button';
+        if (tagName === 'video' || tagName === 'audio') return 'media';
+        if (tagName === 'table') return 'table';
+        if (tagName === 'ul' || tagName === 'ol' || tagName === 'dl') return 'list';
+        if (tagName === 'form') return 'form';
+        if (tagName === 'iframe') return 'iframe';
+        if (/^h[1-6]$/.test(tagName)) return 'heading';
+        if (tagName === 'nav' || element.getAttribute('role') === 'navigation') return 'navigation';
+        if (tagName === 'time') return 'datetime';
+        if (tagName === 'code' || tagName === 'pre') return 'code';
+        if (element.getAttribute('contenteditable') === 'true') return 'editable';
+
+        // Detect by content pattern
+        const text = element.textContent?.trim() || '';
+        if (text.match(/^\$?\d+[.,]\d{2}$/)) return 'price';
+        if (text.match(/^\d{1,2}[\/-]\d{1,2}[\/-]\d{2,4}$/)) return 'date';
+        if (text.match(/^[\w.-]+@[\w.-]+\.[a-zA-Z]{2,}$/)) return 'email';
+        if (text.match(/^(https?:\/\/|www\.)/)) return 'url';
 
         return 'text';
     }
 
     /**
-     * استخراج محتوى نصي نظيف
+     * استخراج محتوى نصي نظيف مع الحفاظ على البنية
      */
     extractTextContent(element) {
-        // إزالة العناصر المخفية والسكريبتات
+        // Check visibility: skip hidden elements
+        if (!this.isElementVisible(element)) return '';
+
         const clone = element.cloneNode(true);
 
-        // إزالة العناصر غير المرغوبة
-        const unwanted = clone.querySelectorAll('script, style, noscript');
+        // Remove unwanted elements
+        const unwanted = clone.querySelectorAll('script, style, noscript, svg, iframe, [hidden], [aria-hidden="true"]');
         unwanted.forEach(el => el.remove());
 
-        let text = clone.textContent || clone.innerText || '';
+        // Remove elements hidden via inline style
+        clone.querySelectorAll('*').forEach(el => {
+            const style = el.getAttribute('style') || '';
+            if (style.includes('display: none') || style.includes('display:none') ||
+                style.includes('visibility: hidden') || style.includes('visibility:hidden')) {
+                el.remove();
+            }
+        });
 
+        // For structured elements, preserve structure
+        const tagName = element.tagName.toLowerCase();
+        if (tagName === 'table') return this.extractTableText(element);
+        if (tagName === 'ul' || tagName === 'ol') return this.extractListText(element);
+        if (tagName === 'dl') return this.extractDefinitionListText(element);
+
+        // For elements with children, try structured extraction
+        if (element.children.length > 3) {
+            return this.extractStructuredText(clone);
+        }
+
+        let text = clone.textContent || clone.innerText || '';
         return this.cleanText(text);
+    }
+
+    /**
+     * Extract text from table preserving row/column structure
+     */
+    extractTableText(tableEl) {
+        const rows = [];
+        const allRows = tableEl.querySelectorAll('tr');
+        allRows.forEach(row => {
+            const cells = [];
+            row.querySelectorAll('th, td').forEach(cell => {
+                let text = cell.textContent?.trim() || '';
+                // Handle colspan
+                const colspan = parseInt(cell.getAttribute('colspan') || '1');
+                cells.push(text);
+                for (let i = 1; i < colspan; i++) cells.push('');
+            });
+            if (cells.some(c => c)) rows.push(cells.join(' | '));
+        });
+        return rows.join('\n');
+    }
+
+    /**
+     * Extract text from lists preserving structure
+     */
+    extractListText(listEl) {
+        const items = [];
+        listEl.querySelectorAll(':scope > li').forEach((li, i) => {
+            const text = li.textContent?.trim();
+            if (text) items.push(`${i + 1}. ${text}`);
+        });
+        return items.join('\n');
+    }
+
+    /**
+     * Extract definition list text
+     */
+    extractDefinitionListText(dlEl) {
+        const pairs = [];
+        const dts = dlEl.querySelectorAll('dt');
+        dts.forEach(dt => {
+            const term = dt.textContent?.trim();
+            const dd = dt.nextElementSibling;
+            const def = dd?.tagName?.toLowerCase() === 'dd' ? dd.textContent?.trim() : '';
+            if (term) pairs.push(`${term}: ${def}`);
+        });
+        return pairs.join('\n');
+    }
+
+    /**
+     * Extract structured text from complex containers
+     */
+    extractStructuredText(clone) {
+        const parts = [];
+        const walker = document.createTreeWalker(clone, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT, {
+            acceptNode(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    return node.textContent.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+                }
+                if (node.nodeType === Node.ELEMENT_NODE) {
+                    const tag = node.tagName.toLowerCase();
+                    if (['br', 'hr', 'p', 'div', 'li', 'tr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'].includes(tag)) {
+                        return NodeFilter.FILTER_ACCEPT;
+                    }
+                }
+                return NodeFilter.FILTER_SKIP;
+            }
+        });
+
+        let node;
+        while (node = walker.nextNode()) {
+            if (node.nodeType === Node.TEXT_NODE) {
+                parts.push(node.textContent.trim());
+            } else if (node.nodeType === Node.ELEMENT_NODE) {
+                const tag = node.tagName.toLowerCase();
+                if (['br', 'hr', 'p', 'div', 'li', 'tr'].includes(tag)) {
+                    parts.push('\n');
+                }
+            }
+        }
+
+        return parts.join(' ').replace(/\s*\n\s*/g, '\n').replace(/[ \t]+/g, ' ').trim();
+    }
+
+    /**
+     * Check if element is visible on page
+     */
+    isElementVisible(element) {
+        if (!element || !element.getBoundingClientRect) return true;
+        try {
+            const style = window.getComputedStyle(element);
+            if (style.display === 'none' || style.visibility === 'hidden' || style.opacity === '0') {
+                return false;
+            }
+            const rect = element.getBoundingClientRect();
+            return rect.width > 0 || rect.height > 0;
+        } catch (_) {
+            return true;
+        }
     }
 
     /**
@@ -226,17 +561,30 @@ class SmartExtractor {
     }
 
     /**
-     * التحقق من صحة البيانات المستخرجة
+     * التحقق من صحة البيانات المستخرجة - محسّن
      */
     validateExtractedData(data) {
-        // تحقق من وجود قيمة
-        if (!data.value || data.value.trim() === '') {
-            return false;
+        // For structured data types (table, list, form), check differently
+        if (data.type === 'table' || data.type === 'list' || data.type === 'form') {
+            return data.value !== null && data.value !== undefined;
         }
 
-        // تحقق من طول القيمة
-        if (data.value.length > 10000) {
-            data.value = data.value.substring(0, 10000) + '...';
+        // تحقق من وجود قيمة
+        if (data.value === null || data.value === undefined) return false;
+
+        // For string values
+        if (typeof data.value === 'string') {
+            if (data.value.trim() === '') return false;
+            // Truncate excessively long text
+            if (data.value.length > 50000) {
+                data.value = data.value.substring(0, 50000) + '...[truncated]';
+            }
+        }
+
+        // For object/array values (structured data)
+        if (typeof data.value === 'object') {
+            if (Array.isArray(data.value) && data.value.length === 0) return false;
+            if (!Array.isArray(data.value) && Object.keys(data.value).length === 0) return false;
         }
 
         return true;
@@ -353,7 +701,11 @@ class SmartExtractor {
             includeLinks = false,
             includeImages = false,
             containerSelector = 'body',
-            useSemanticAnalysis = true
+            useSemanticAnalysis = true,
+            includeShadowDOM = true,
+            includeTables = true,
+            includeLists = true,
+            maxDepth = 10
         } = options;
 
         // إذا كان التحليل الدلالي مفعّل
@@ -361,7 +713,7 @@ class SmartExtractor {
             return this.semanticSmartExtract(options);
         }
 
-        // الاستخراج التقليدي
+        // الاستخراج التقليدي المحسّن
         const container = document.querySelector(containerSelector);
         if (!container) return null;
 
@@ -369,9 +721,9 @@ class SmartExtractor {
 
         // استخراج الحقول (inputs, textareas, selects)
         if (includeInputs) {
-            const inputs = container.querySelectorAll('input, textarea, select');
+            const inputs = container.querySelectorAll('input, textarea, select, [contenteditable="true"]');
             inputs.forEach((input, index) => {
-                const name = input.name || input.id || `field_${index}`;
+                const name = input.name || input.id || input.getAttribute('aria-label') || `field_${index}`;
                 autoElements.push({
                     name: name,
                     selector: this.generateUniqueSelector(input)
@@ -379,14 +731,70 @@ class SmartExtractor {
             });
         }
 
-        // استخراج النصوص المهمة
+        // استخراج النصوص المهمة - بشكل أوسع
         if (includeText) {
-            const textElements = container.querySelectorAll('p, h1, h2, h3, h4, h5, h6, span[class*="text"], div[class*="content"]');
-            textElements.forEach((element, index) => {
-                if (element.textContent.trim().length > 10) {
+            const textSelectors = [
+                'p', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+                'blockquote', 'figcaption', 'caption',
+                'span[class*="text"]', 'span[class*="label"]', 'span[class*="value"]', 'span[class*="title"]',
+                'div[class*="content"]', 'div[class*="description"]', 'div[class*="body"]',
+                'div[class*="answer"]', 'div[class*="question"]', 'div[class*="stat"]',
+                'article', 'section > p', 'main p',
+                '[itemprop]', '[data-content]', 'time', 'address',
+                'dd', 'dt',
+                '.answer-block', '.question-meta'
+            ];
+            const textElements = container.querySelectorAll(textSelectors.join(', '));
+            const seen = new Set();  // Avoid duplicates
+            let textIdx = 0;
+
+            textElements.forEach((element) => {
+                if (seen.has(element)) return;
+                // Skip hidden elements
+                if (!this.isElementVisible(element)) return;
+                // Skip if inside script/style
+                if (element.closest('script, style, noscript')) return;
+
+                const text = element.textContent?.trim();
+                if (text && text.length > 5) {
+                    // Don't add parent if child already added
+                    let dominated = false;
+                    seen.forEach(prev => {
+                        if (element.contains(prev) || prev.contains(element)) dominated = true;
+                    });
+                    if (!dominated) {
+                        autoElements.push({
+                            name: element.id || element.getAttribute('itemprop') || `text_${textIdx}`,
+                            selector: this.generateUniqueSelector(element)
+                        });
+                        seen.add(element);
+                        textIdx++;
+                    }
+                }
+            });
+        }
+
+        // استخراج الجداول كعناصر كاملة
+        if (includeTables) {
+            const tables = container.querySelectorAll('table');
+            tables.forEach((table, index) => {
+                if (table.rows.length >= 2) {
                     autoElements.push({
-                        name: `text_${index}`,
-                        selector: this.generateUniqueSelector(element)
+                        name: table.id || table.getAttribute('aria-label') || `table_${index}`,
+                        selector: this.generateUniqueSelector(table)
+                    });
+                }
+            });
+        }
+
+        // استخراج القوائم
+        if (includeLists) {
+            container.querySelectorAll('ul, ol, dl').forEach((list, index) => {
+                const items = list.querySelectorAll(':scope > li, :scope > dt');
+                if (items.length >= 2) {
+                    autoElements.push({
+                        name: list.id || `list_${index}`,
+                        selector: this.generateUniqueSelector(list)
                     });
                 }
             });
@@ -396,25 +804,57 @@ class SmartExtractor {
         if (includeLinks) {
             const links = container.querySelectorAll('a[href]');
             links.forEach((link, index) => {
-                autoElements.push({
-                    name: `link_${index}`,
-                    selector: this.generateUniqueSelector(link)
-                });
+                if (link.href && link.textContent?.trim()) {
+                    autoElements.push({
+                        name: `link_${index}`,
+                        selector: this.generateUniqueSelector(link)
+                    });
+                }
             });
         }
 
         // استخراج الصور
         if (includeImages) {
-            const images = container.querySelectorAll('img[src]');
+            const images = container.querySelectorAll('img[src], picture, [style*=\"background-image\"]');
             images.forEach((img, index) => {
                 autoElements.push({
-                    name: `image_${index}`,
+                    name: img.alt || `image_${index}`,
                     selector: this.generateUniqueSelector(img)
                 });
             });
         }
 
+        // Shadow DOM extraction
+        if (includeShadowDOM) {
+            this.extractFromShadowRoots(container, autoElements, maxDepth);
+        }
+
         return this.extractFromElements(autoElements);
+    }
+
+    /**
+     * Extract elements from Shadow DOM roots recursively
+     */
+    extractFromShadowRoots(root, elements, maxDepth, depth = 0) {
+        if (depth >= maxDepth) return;
+
+        const allElements = root.querySelectorAll('*');
+        allElements.forEach(el => {
+            if (el.shadowRoot) {
+                const shadowElements = el.shadowRoot.querySelectorAll('input, textarea, select, p, h1, h2, h3, h4, h5, h6, table, ul, ol');
+                shadowElements.forEach((shadowEl, idx) => {
+                    const text = shadowEl.textContent?.trim();
+                    if (text && text.length > 5) {
+                        elements.push({
+                            name: `shadow_${depth}_${idx}`,
+                            selector: this.generateUniqueSelector(shadowEl),
+                            shadowHost: this.generateUniqueSelector(el)
+                        });
+                    }
+                });
+                this.extractFromShadowRoots(el.shadowRoot, elements, maxDepth, depth + 1);
+            }
+        });
     }
 
     /**
@@ -490,32 +930,72 @@ class SmartExtractor {
     }
 
     /**
-     * إنشاء selector فريد للعنصر
+     * إنشاء selector فريد للعنصر - محسّن مع استراتيجيات متعددة
      */
     generateUniqueSelector(element) {
+        if (!element) return '';
+
+        // Strategy 1: ID (if unique)
         if (element.id) {
-            return `#${element.id}`;
+            try {
+                const escaped = CSS.escape ? CSS.escape(element.id) : element.id;
+                if (document.querySelectorAll(`#${escaped}`).length === 1) {
+                    return `#${escaped}`;
+                }
+            } catch (_) {}
         }
 
-        let selector = element.tagName.toLowerCase();
-
-        if (element.className) {
-            const classes = element.className.toString().trim().split(/\s+/);
-            if (classes.length > 0 && classes[0]) {
-                selector += `.${classes[0]}`;
+        // Strategy 2: Unique stable data attributes
+        const stableAttrs = ['data-testid', 'data-cy', 'data-id', 'data-key', 'data-student-row',
+                              'data-score', 'name', 'aria-label', 'itemprop', 'itemtype'];
+        for (const attr of stableAttrs) {
+            const val = element.getAttribute(attr);
+            if (val) {
+                const sel = `${element.tagName.toLowerCase()}[${attr}="${val}"]`;
+                try {
+                    if (document.querySelectorAll(sel).length === 1) return sel;
+                } catch (_) {}
             }
         }
 
-        // إضافة nth-child للتفرد
+        // Strategy 3: Tag + classes + position
+        let selector = element.tagName.toLowerCase();
+        if (element.className) {
+            const classStr = typeof element.className === 'string' ? element.className : '';
+            const classes = classStr.trim().split(/\s+/).filter(c =>
+                c && !c.startsWith('onpage-') && !c.includes(':')
+            );
+            if (classes.length > 0) {
+                selector += '.' + classes.slice(0, 2).join('.');
+            }
+        }
+
+        // Add nth-of-type for uniqueness
         const parent = element.parentElement;
         if (parent) {
             const siblings = Array.from(parent.children).filter(
                 child => child.tagName === element.tagName
             );
-
             if (siblings.length > 1) {
                 const index = siblings.indexOf(element) + 1;
-                selector += `:nth-child(${index})`;
+                selector += `:nth-of-type(${index})`;
+            }
+        }
+
+        // Validate
+        try {
+            const matches = document.querySelectorAll(selector);
+            if (matches.length === 1) return selector;
+        } catch (_) {}
+
+        // Strategy 4: Build path from parent if not unique
+        if (parent && parent !== document.body) {
+            const parentSelector = this.generateUniqueSelector(parent);
+            if (parentSelector) {
+                const combined = `${parentSelector} > ${selector}`;
+                try {
+                    if (document.querySelectorAll(combined).length >= 1) return combined;
+                } catch (_) {}
             }
         }
 

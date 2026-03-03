@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faDatabase, faExclamationTriangle, faFilter, faSpinner } from "@fortawesome/free-solid-svg-icons";
 
@@ -42,7 +42,7 @@ export default function DataPreview({
     <div className="bg-white rounded-lg shadow p-4">
       <div className="flex items-center justify-between mb-4">
         <h2 className="text-lg font-semibold flex items-center gap-2">
-          <FontAwesomeIcon icon={faDatabase} />
+          <FontAwesomeIcon icon={faDatabase as any} />
           Data Preview ({preview.length} rows)
         </h2>
         <button
@@ -50,7 +50,7 @@ export default function DataPreview({
           disabled={loadingPreview}
           className="px-3 py-1 bg-blue-500 text-white rounded text-sm hover:bg-blue-600 disabled:opacity-50"
         >
-          {loadingPreview ? <FontAwesomeIcon icon={faSpinner} spin /> : "Refresh"}
+          {loadingPreview ? <FontAwesomeIcon icon={faSpinner as any} spin /> : "Refresh"}
         </button>
       </div>
 
@@ -64,7 +64,7 @@ export default function DataPreview({
 
       {previewError && (
         <div className="bg-red-50 border border-red-200 rounded p-3 mb-3 flex items-center gap-2">
-          <FontAwesomeIcon icon={faExclamationTriangle} className="text-red-500" />
+          <FontAwesomeIcon icon={faExclamationTriangle as any} className="text-red-500" />
           <span className="text-sm text-red-700">{previewError}</span>
         </div>
       )}
@@ -110,3 +110,4 @@ export default function DataPreview({
     </div>
   );
 }
+

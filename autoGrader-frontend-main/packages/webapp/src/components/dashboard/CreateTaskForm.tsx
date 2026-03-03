@@ -1,4 +1,4 @@
-import React from "react";
+﻿import React from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPlus, faSpinner } from "@fortawesome/free-solid-svg-icons";
 
@@ -22,7 +22,7 @@ export default function CreateTaskForm({
   return (
     <div className="bg-white rounded-lg shadow p-4">
       <h2 className="text-lg font-semibold mb-4 flex items-center gap-2">
-        <FontAwesomeIcon icon={faPlus} />
+        <FontAwesomeIcon icon={faPlus as any} />
         Create Custom Task
       </h2>
 
@@ -85,12 +85,12 @@ export default function CreateTaskForm({
         >
           {creating ? (
             <>
-              <FontAwesomeIcon icon={faSpinner} spin className="mr-2" />
+              <FontAwesomeIcon icon={faSpinner as any} spin className="mr-2" />
               Creating Task...
             </>
           ) : (
             <>
-              <FontAwesomeIcon icon={faPlus} className="mr-2" />
+              <FontAwesomeIcon icon={faPlus as any} className="mr-2" />
               Create Task
             </>
           )}
@@ -103,3 +103,4 @@ export default function CreateTaskForm({
     </div>
   );
 }
+

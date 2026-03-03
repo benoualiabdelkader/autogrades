@@ -43,11 +43,10 @@ export default function ChatInterface({
             className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}
           >
             <div
-              className={`max-w-[80%] rounded-lg px-4 py-2 ${
-                msg.role === "user"
+              className={`max-w-[80%] rounded-lg px-4 py-2 ${msg.role === "user"
                   ? "bg-blue-500 text-white"
                   : "bg-gray-100 text-gray-800"
-              }`}
+                }`}
             >
               <div className="text-sm whitespace-pre-wrap">{msg.content}</div>
               <div className="text-xs opacity-70 mt-1">{msg.time}</div>
@@ -73,9 +72,9 @@ export default function ChatInterface({
           className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600 disabled:opacity-50 disabled:cursor-not-allowed"
         >
           {assistantBusy ? (
-            <FontAwesomeIcon icon={faSpinner} spin />
+            <FontAwesomeIcon icon={faSpinner as any} spin />
           ) : (
-            <FontAwesomeIcon icon={faPaperPlane} />
+            <FontAwesomeIcon icon={faPaperPlane as any} />
           )}
         </button>
       </div>

@@ -1,0 +1,1433 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>نظام اختبار الطلبة - AutoGrader Extension Test</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e1a;
+            --bg-secondary: #111827;
+            --bg-card: #1a1f35;
+            --bg-hover: #232a45;
+            --border: rgba(99, 102, 241, 0.15);
+            --border-active: rgba(99, 102, 241, 0.4);
+            --text-primary: #f1f5f9;
+            --text-secondary: #94a3b8;
+            --text-muted: #64748b;
+            --accent: #6366f1;
+            --accent-light: #818cf8;
+            --success: #10b981;
+            --warning: #f59e0b;
+            --danger: #ef4444;
+            --info: #3b82f6;
+            --gradient-1: linear-gradient(135deg, #6366f1, #8b5cf6);
+            --gradient-2: linear-gradient(135deg, #3b82f6, #06b6d4);
+            --gradient-3: linear-gradient(135deg, #10b981, #059669);
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        
+        body {
+            font-family: 'Segoe UI', 'Cairo', Tahoma, Geneva, Verdana, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* ─── Ambient Background ─── */
+        .ambient-bg {
+            position: fixed;
+            inset: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
+        .ambient-bg::before {
+            content: '';
+            position: absolute;
+            top: -20%;
+            right: -10%;
+            width: 600px;
+            height: 600px;
+            background: radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: float 20s ease-in-out infinite;
+        }
+        .ambient-bg::after {
+            content: '';
+            position: absolute;
+            bottom: -10%;
+            left: -10%;
+            width: 500px;
+            height: 500px;
+            background: radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%);
+            border-radius: 50%;
+            animation: float 25s ease-in-out infinite reverse;
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0) translateX(0); }
+            25% { transform: translateY(-30px) translateX(20px); }
+            50% { transform: translateY(10px) translateX(-15px); }
+            75% { transform: translateY(-20px) translateX(10px); }
+        }
+
+        .container {
+            position: relative;
+            z-index: 1;
+            max-width: 1400px;
+            margin: 0 auto;
+            padding: 30px 20px;
+        }
+
+        /* ─── Header ─── */
+        .header {
+            background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.05));
+            border: 1px solid var(--border);
+            border-radius: 24px;
+            padding: 40px;
+            margin-bottom: 30px;
+            position: relative;
+            overflow: hidden;
+        }
+        .header::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            right: -20%;
+            width: 300px;
+            height: 300px;
+            background: radial-gradient(circle, rgba(99,102,241,0.15), transparent);
+            border-radius: 50%;
+        }
+        .header-content {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .header-title {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+        }
+        .header-icon {
+            width: 64px;
+            height: 64px;
+            background: var(--gradient-1);
+            border-radius: 18px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 28px;
+            box-shadow: 0 8px 32px rgba(99,102,241,0.3);
+        }
+        .header h1 {
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(to left, #fff, #c7d2fe);
+            background-clip: text;
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .header p {
+            color: var(--text-secondary);
+            font-size: 0.95rem;
+            margin-top: 4px;
+        }
+        .header-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 8px 16px;
+            background: rgba(16,185,129,0.1);
+            border: 1px solid rgba(16,185,129,0.3);
+            border-radius: 12px;
+            color: #10b981;
+            font-size: 0.85rem;
+            font-weight: 600;
+        }
+        .header-badge .dot {
+            width: 8px;
+            height: 8px;
+            background: #10b981;
+            border-radius: 50%;
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; transform: scale(1); }
+            50% { opacity: 0.5; transform: scale(0.8); }
+        }
+
+        /* ─── Stats Bar ─── */
+        .stats-bar {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .stat-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            transition: all 0.3s;
+        }
+        .stat-card:hover {
+            border-color: var(--border-active);
+            transform: translateY(-2px);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.2);
+        }
+        .stat-icon {
+            width: 48px;
+            height: 48px;
+            border-radius: 14px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 22px;
+            flex-shrink: 0;
+        }
+        .stat-value { font-size: 1.8rem; font-weight: 800; color: var(--text-primary); }
+        .stat-label { font-size: 0.8rem; color: var(--text-muted); margin-top: 2px; }
+
+        /* ─── Controls ─── */
+        .controls {
+            display: flex;
+            gap: 12px;
+            margin-bottom: 24px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            padding: 12px 24px;
+            border-radius: 14px;
+            font-size: 0.9rem;
+            font-weight: 700;
+            border: none;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-family: inherit;
+        }
+        .btn-primary {
+            background: var(--gradient-1);
+            color: white;
+            box-shadow: 0 4px 20px rgba(99,102,241,0.3);
+        }
+        .btn-primary:hover {
+            box-shadow: 0 6px 28px rgba(99,102,241,0.4);
+            transform: translateY(-1px);
+        }
+        .btn-success {
+            background: var(--gradient-3);
+            color: white;
+            box-shadow: 0 4px 20px rgba(16,185,129,0.3);
+        }
+        .btn-success:hover {
+            box-shadow: 0 6px 28px rgba(16,185,129,0.4);
+            transform: translateY(-1px);
+        }
+        .btn-secondary {
+            background: var(--bg-card);
+            color: var(--text-secondary);
+            border: 1px solid var(--border);
+        }
+        .btn-secondary:hover {
+            background: var(--bg-hover);
+            color: var(--text-primary);
+            border-color: var(--border-active);
+        }
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            color: white;
+        }
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+
+        /* ─── Table ─── */
+        .table-wrapper {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            margin-bottom: 30px;
+        }
+        .table-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .table-title {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+        }
+        thead th {
+            background: rgba(99,102,241,0.05);
+            padding: 14px 16px;
+            font-size: 0.8rem;
+            font-weight: 700;
+            color: var(--text-secondary);
+            text-align: right;
+            border-bottom: 1px solid var(--border);
+            white-space: nowrap;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        tbody td {
+            padding: 14px 16px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            font-size: 0.9rem;
+            vertical-align: top;
+        }
+        tbody tr {
+            transition: background 0.2s;
+        }
+        tbody tr:hover {
+            background: rgba(99,102,241,0.03);
+        }
+        tbody tr:last-child td {
+            border-bottom: none;
+        }
+        .student-name {
+            font-weight: 700;
+            color: var(--accent-light);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .student-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 10px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 14px;
+            font-weight: 800;
+            flex-shrink: 0;
+        }
+        .answer-cell {
+            max-width: 300px;
+            color: var(--text-secondary);
+            line-height: 1.6;
+        }
+        .answer-text {
+            display: -webkit-box;
+            line-clamp: 3;
+            -webkit-line-clamp: 3;
+            -webkit-box-orient: vertical;
+            overflow: hidden;
+        }
+        .answer-text.expanded {
+            line-clamp: unset;
+            -webkit-line-clamp: unset;
+        }
+        .expand-btn {
+            background: none;
+            border: none;
+            color: var(--accent);
+            font-size: 0.75rem;
+            cursor: pointer;
+            padding: 4px 0;
+            font-family: inherit;
+        }
+
+        /* ─── Results Section ─── */
+        .results-section {
+            display: none;
+            margin-top: 30px;
+        }
+        .results-section.visible { display: block; }
+        
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 16px;
+            margin-bottom: 30px;
+        }
+        .result-card {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            padding: 24px;
+            transition: all 0.3s;
+        }
+        .result-card:hover {
+            border-color: var(--border-active);
+            transform: translateY(-2px);
+        }
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 16px;
+        }
+        .result-score {
+            font-size: 2.5rem;
+            font-weight: 900;
+            line-height: 1;
+        }
+        .result-grade {
+            display: inline-flex;
+            align-items: center;
+            padding: 6px 14px;
+            border-radius: 10px;
+            font-size: 0.85rem;
+            font-weight: 700;
+        }
+        .rule-bar {
+            margin: 8px 0;
+        }
+        .rule-label {
+            display: flex;
+            justify-content: space-between;
+            font-size: 0.78rem;
+            color: var(--text-muted);
+            margin-bottom: 4px;
+        }
+        .rule-track {
+            height: 6px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .rule-fill {
+            height: 100%;
+            border-radius: 3px;
+            transition: width 1s ease;
+        }
+        .ai-feedback {
+            margin-top: 12px;
+            padding: 12px;
+            background: rgba(99,102,241,0.05);
+            border: 1px solid rgba(99,102,241,0.1);
+            border-radius: 12px;
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            line-height: 1.7;
+        }
+
+        /* ─── Summary ─── */
+        .summary-card {
+            background: linear-gradient(135deg, rgba(99,102,241,0.1), rgba(139,92,246,0.05));
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 30px;
+            margin-bottom: 30px;
+        }
+        .summary-stats {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 16px;
+            margin-top: 20px;
+        }
+        .summary-stat {
+            text-align: center;
+            padding: 16px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 14px;
+        }
+        .summary-stat-value {
+            font-size: 2rem;
+            font-weight: 900;
+        }
+        .summary-stat-label {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+        }
+
+        /* ─── Loading ─── */
+        .loading-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(10,14,26,0.85);
+            backdrop-filter: blur(8px);
+            z-index: 100;
+            align-items: center;
+            justify-content: center;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .loading-overlay.visible { display: flex; }
+        .spinner {
+            width: 56px;
+            height: 56px;
+            border: 3px solid rgba(99,102,241,0.2);
+            border-top-color: var(--accent);
+            border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+        .loading-text { font-size: 1.1rem; color: var(--text-secondary); }
+        .progress-bar-container {
+            width: 300px;
+            height: 6px;
+            background: rgba(255,255,255,0.05);
+            border-radius: 3px;
+            overflow: hidden;
+        }
+        .progress-bar-fill {
+            height: 100%;
+            width: 0%;
+            background: var(--gradient-1);
+            border-radius: 3px;
+            transition: width 0.3s;
+        }
+
+        /* ─── Rules Editor ─── */
+        .rules-panel {
+            background: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            padding: 24px;
+            margin-bottom: 30px;
+            display: none;
+        }
+        .rules-panel.visible { display: block; }
+        .rule-row {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr auto;
+            gap: 12px;
+            align-items: center;
+            padding: 12px;
+            background: rgba(0,0,0,0.2);
+            border-radius: 12px;
+            margin-bottom: 8px;
+        }
+        .rule-input {
+            background: rgba(0,0,0,0.3);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            padding: 10px 14px;
+            color: var(--text-primary);
+            font-family: inherit;
+            font-size: 0.9rem;
+        }
+        .rule-input:focus {
+            outline: none;
+            border-color: var(--accent);
+        }
+        select.rule-input {
+            cursor: pointer;
+        }
+
+        /* Toast */
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%) translateY(100px);
+            padding: 14px 28px;
+            border-radius: 14px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            z-index: 200;
+            transition: transform 0.4s ease;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .toast.visible { transform: translateX(-50%) translateY(0); }
+        .toast-success { background: rgba(16,185,129,0.2); border: 1px solid rgba(16,185,129,0.3); color: #10b981; }
+        .toast-error { background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.3); color: #ef4444; }
+        .toast-info { background: rgba(99,102,241,0.2); border: 1px solid rgba(99,102,241,0.3); color: var(--accent-light); }
+
+        @media (max-width: 768px) {
+            .header { padding: 24px; }
+            .header h1 { font-size: 1.4rem; }
+            .controls { flex-direction: column; }
+            .btn { width: 100%; justify-content: center; }
+            .rule-row { grid-template-columns: 1fr; }
+        }
+    </style>
+</head>
+<body>
+    <div class="ambient-bg"></div>
+    
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div class="loading-text" id="loadingText">جاري تحليل البيانات بالذكاء الاصطناعي...</div>
+        <div class="progress-bar-container">
+            <div class="progress-bar-fill" id="progressBar"></div>
+        </div>
+    </div>
+
+    <!-- Toast -->
+    <div class="toast toast-success" id="toast">
+        <span id="toastIcon">✓</span>
+        <span id="toastText"></span>
+    </div>
+
+    <div class="container">
+        <!-- Header -->
+        <div class="header">
+            <div class="header-content">
+                <div class="header-title">
+                    <div class="header-icon">🎓</div>
+                    <div>
+                        <h1>نظام اختبار الطلبة التجريبي</h1>
+                        <p>صفحة تجريبية لاختبار Extension + AI Grading System</p>
+                    </div>
+                </div>
+                <div class="header-badge">
+                    <div class="dot"></div>
+                    جاهز لاستقبال Extension
+                </div>
+            </div>
+        </div>
+
+        <!-- Stats Bar -->
+        <div class="stats-bar">
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(99,102,241,0.15); color: var(--accent-light);">👨‍🎓</div>
+                <div>
+                    <div class="stat-value" id="statStudents">12</div>
+                    <div class="stat-label">طالب</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(16,185,129,0.15); color: #10b981;">📝</div>
+                <div>
+                    <div class="stat-value" id="statQuestions">5</div>
+                    <div class="stat-label">سؤال</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(245,158,11,0.15); color: #f59e0b;">📊</div>
+                <div>
+                    <div class="stat-value" id="statAnswers">60</div>
+                    <div class="stat-label">إجابة</div>
+                </div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-icon" style="background: rgba(236,72,153,0.15); color: #ec4899;">⚡</div>
+                <div>
+                    <div class="stat-value" id="statStatus">جاهز</div>
+                    <div class="stat-label">الحالة</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Controls -->
+        <div class="controls">
+            <button class="btn btn-primary" onclick="sendToExtension()">
+                📤 إرسال للنظام (Extension Simulation)
+            </button>
+            <button class="btn btn-success" onclick="analyzeWithAI(false)">
+                🧠 تحليل بالقواعد المحلية
+            </button>
+            <button class="btn btn-success" onclick="analyzeWithAI(true)" style="background: linear-gradient(135deg, #8b5cf6, #6366f1);">
+                🤖 تحليل بالذكاء الاصطناعي + القواعد
+            </button>
+            <button class="btn btn-secondary" onclick="toggleRules()">
+                ⚙️ تعديل القواعد
+            </button>
+            <button class="btn btn-secondary" onclick="exportCSV()">
+                📥 تصدير CSV
+            </button>
+        </div>
+
+        <!-- Rules Panel -->
+        <div class="rules-panel" id="rulesPanel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+                <h3 style="font-size:1.2rem; font-weight:700;">⚙️ قواعد التقييم</h3>
+                <div style="display:flex; gap:8px;">
+                    <select class="rule-input" id="templateSelect" onchange="loadTemplate()" style="width:auto;">
+                        <option value="general">عام</option>
+                        <option value="arabic_essay" selected>مقال عربي</option>
+                        <option value="quiz">اختبار قصير</option>
+                        <option value="programming">برمجة</option>
+                    </select>
+                    <button class="btn btn-secondary" onclick="addRule()" style="padding:8px 16px; font-size:0.8rem;">+ إضافة قاعدة</button>
+                </div>
+            </div>
+            <div id="rulesContainer"></div>
+        </div>
+
+        <!-- Students Table -->
+        <div class="table-wrapper">
+            <div class="table-header">
+                <div class="table-title">
+                    <span>📋</span>
+                    <span>جدول بيانات الطلبة وإجاباتهم</span>
+                </div>
+                <div style="font-size:0.8rem; color:var(--text-muted);">
+                    يمكن لـ Extension استخراج هذه البيانات مباشرة
+                </div>
+            </div>
+            <div style="overflow-x: auto;">
+                <table id="studentsTable">
+                    <thead id="tableHead"></thead>
+                    <tbody id="tableBody"></tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Results Section -->
+        <div class="results-section" id="resultsSection">
+            <!-- Summary -->
+            <div class="summary-card" id="summaryCard">
+                <h3 style="font-size:1.3rem; font-weight:800; margin-bottom:8px;">📊 ملخص التحليل</h3>
+                <p style="color:var(--text-muted); font-size:0.9rem;" id="summarySubtitle"></p>
+                <div class="summary-stats" id="summaryStats"></div>
+            </div>
+
+            <!-- Results Grid -->
+            <div class="results-grid" id="resultsGrid"></div>
+        </div>
+    </div>
+
+<script>
+// ═══════════════════════════════════════════
+// Student Data - بيانات الطلاب التجريبية
+// ═══════════════════════════════════════════
+
+const QUESTIONS = [
+    "ما هو الذكاء الاصطناعي؟ اشرح مفهومه الأساسي.",
+    "ما الفرق بين التعلم الآلي والتعلم العميق؟",
+    "اذكر ثلاثة تطبيقات عملية للذكاء الاصطناعي في التعليم.",
+    "ما هي الشبكات العصبية وكيف تعمل؟",
+    "ناقش التحديات الأخلاقية للذكاء الاصطناعي."
+];
+
+const STUDENTS = [
+    {
+        id: "STU001",
+        name: "أحمد محمد علي",
+        answers: {
+            [QUESTIONS[0]]: "الذكاء الاصطناعي هو فرع من علوم الحاسوب يهتم بإنشاء أنظمة قادرة على أداء مهام تتطلب ذكاءً بشرياً. يشمل ذلك التعلم والاستدلال وحل المشكلات واتخاذ القرارات. يعتمد على خوارزميات رياضية ونماذج حسابية تحاكي طريقة عمل الدماغ البشري في معالجة المعلومات.",
+            [QUESTIONS[1]]: "التعلم الآلي هو فرع من الذكاء الاصطناعي يمكّن الأنظمة من التعلم من البيانات دون برمجة صريحة. أما التعلم العميق فهو جزء من التعلم الآلي يستخدم شبكات عصبية متعددة الطبقات لمعالجة البيانات المعقدة مثل الصور والنصوص.",
+            [QUESTIONS[2]]: "أولاً: أنظمة التقييم الآلي للواجبات. ثانياً: المساعدات الذكية التي تساعد الطلاب في الدراسة. ثالثاً: تحليل أداء الطلاب والتنبؤ بالمتعثرين.",
+            [QUESTIONS[3]]: "الشبكات العصبية هي نماذج حسابية مستوحاة من بنية الدماغ البشري. تتكون من طبقات من العقد المترابطة تعالج البيانات بشكل تسلسلي. يتم تدريبها باستخدام بيانات كبيرة وخوارزمية الانتشار العكسي لضبط الأوزان.",
+            [QUESTIONS[4]]: "تشمل التحديات الأخلاقية: الخصوصية وحماية البيانات الشخصية، التحيز في الخوارزميات الذي قد يؤدي لتمييز غير عادل، تأثير الأتمتة على سوق العمل وفقدان الوظائف، ومسألة المسؤولية عند حدوث أخطاء في أنظمة الذكاء الاصطناعي."
+        }
+    },
+    {
+        id: "STU002",
+        name: "فاطمة حسن",
+        answers: {
+            [QUESTIONS[0]]: "الذكاء الاصطناعي هو تقنية تجعل الآلات تفكر مثل البشر. يستخدم في كثير من التطبيقات مثل السيارات ذاتية القيادة والمساعدات الصوتية مثل سيري وأليكسا.",
+            [QUESTIONS[1]]: "التعلم الآلي يتعلم من البيانات. التعلم العميق يستخدم شبكات عصبية كثيرة الطبقات وهو أكثر تعقيداً. على سبيل المثال، التعرف على الوجوه يستخدم التعلم العميق.",
+            [QUESTIONS[2]]: "1. التصحيح الآلي للامتحانات\n2. الترجمة الآلية للنصوص التعليمية\n3. أنظمة التوصية بالمواد الدراسية المناسبة لكل طالب بناءً على مستواه وأدائه",
+            [QUESTIONS[3]]: "هي نماذج رياضية تحاكي الخلايا العصبية في الدماغ. كل خلية تستقبل مدخلات وتنتج مخرجات بعد تطبيق دالة تنشيط.",
+            [QUESTIONS[4]]: "التحديات الأخلاقية كثيرة منها موضوع الخصوصية حيث تجمع أنظمة الذكاء الاصطناعي كميات هائلة من البيانات. أيضاً هناك مخاوف من استبدال البشر بالروبوتات في العمل."
+        }
+    },
+    {
+        id: "STU003",
+        name: "عمر خالد",
+        answers: {
+            [QUESTIONS[0]]: "الذكاء الاصطناعي عبارة عن برامج كمبيوتر ذكية.",
+            [QUESTIONS[1]]: "التعلم الآلي أبسط من التعلم العميق.",
+            [QUESTIONS[2]]: "يستخدم في التعليم بأشكال مختلفة.",
+            [QUESTIONS[3]]: "شبكات مثل الأعصاب.",
+            [QUESTIONS[4]]: "خطير على البشرية."
+        }
+    },
+    {
+        id: "STU004",
+        name: "مريم السيد",
+        answers: {
+            [QUESTIONS[0]]: "الذكاء الاصطناعي (AI) هو مجال واسع في علوم الحاسب يهدف إلى بناء آلات ذكية قادرة على محاكاة القدرات الإدراكية البشرية. يتضمن عدة مجالات فرعية منها: معالجة اللغة الطبيعية، الرؤية الحاسوبية، التخطيط الآلي، والتعلم الآلي. تاريخياً بدأ المجال في خمسينيات القرن الماضي مع أعمال آلان تورينج.",
+            [QUESTIONS[1]]: "التعلم الآلي (Machine Learning) هو مجموعة من التقنيات التي تمكن الحاسوب من التعلم من البيانات واتخاذ قرارات بناءً على أنماط مكتشفة. يشمل أنواعاً مثل التعلم الموجه والتعلم غير الموجه والتعلم المعزز.\n\nالتعلم العميق (Deep Learning) هو فئة متقدمة من التعلم الآلي تستخدم شبكات عصبية اصطناعية ذات طبقات متعددة (Deep Neural Networks). يتميز بقدرته على استخلاص السمات تلقائياً من البيانات الخام دون الحاجة لهندسة الميزات يدوياً.",
+            [QUESTIONS[2]]: "التطبيقات العملية:\n1. أنظمة التقييم والتصحيح الآلي: تستخدم خوارزميات NLP لتقييم إجابات الطلاب\n2. التعلم التكيفي: منصات مثل DreamBox تتكيف مع مستوى كل طالب\n3. الكشف المبكر عن الطلاب المتعثرين: تحليل بيانات الأداء للتنبؤ بالمخاطر الأكاديمية",
+            [QUESTIONS[3]]: "الشبكات العصبية الاصطناعية (Artificial Neural Networks) هي نموذج حسابي مستلهم من البنية البيولوجية للدماغ البشري. تتكون من:\n- طبقة مدخلات (Input Layer)\n- طبقات مخفية (Hidden Layers)\n- طبقة مخرجات (Output Layer)\n\nآلية العمل:\n1. تستقبل العقد بيانات مرجحة (weighted inputs)\n2. تطبق دالة تنشيط (activation function) مثل ReLU أو Sigmoid\n3. تمرر النتيجة للطبقة التالية\n4. خوارزمية Backpropagation تعدل الأوزان بناءً على الخطأ",
+            [QUESTIONS[4]]: "التحديات الأخلاقية الرئيسية:\n\n1. الخصوصية: جمع ومعالجة كميات ضخمة من البيانات الشخصية يثير مخاوف حول انتهاك الخصوصية\n\n2. التحيز الخوارزمي: إذا كانت بيانات التدريب متحيزة، ستكون قرارات النظام متحيزة أيضاً، مثلاً في أنظمة التوظيف\n\n3. المسؤولية القانونية: من المسؤول عند حدوث خطأ - المطور أم المستخدم أم النظام نفسه؟\n\n4. البطالة التقنية: استبدال العمالة البشرية بالأتمتة\n\n5. الأسلحة الذاتية: استخدام AI في أنظمة أسلحة مستقلة"
+        }
+    },
+    {
+        id: "STU005",
+        name: "يوسف عبدالله",
+        answers: {
+            [QUESTIONS[0]]: "AI هو علم يدرس كيفية جعل الحاسوب يقوم بمهام ذكية. يشمل التعرف على الأنماط واتخاذ القرارات ومعالجة اللغة.",
+            [QUESTIONS[1]]: "الفرق الأساسي هو أن التعلم العميق يستخدم طبقات كثيرة بينما التعلم الآلي قد يستخدم طبقة واحدة أو أساليب أبسط مثل أشجار القرار وSVM.",
+            [QUESTIONS[2]]: "- المعلم الافتراضي الذي يجيب على أسئلة الطلاب\n- تحليل مقاطع الفيديو التعليمية وإنشاء ملخصات\n- كشف الغش في الامتحانات الإلكترونية",
+            [QUESTIONS[3]]: "ببساطة هي طبقات من الوحدات المعالجة تشبه الأعصاب. كل وحدة تأخذ مدخلات وتعطي مخرجات. التدريب يتم بتعديل الأوزان.",
+            [QUESTIONS[4]]: "أهم التحديات: خصوصية البيانات والتحيز في القرارات وتأثيرها على الوظائف. يجب وضع قوانين صارمة لتنظيم استخدام الذكاء الاصطناعي وحماية الأفراد."
+        }
+    },
+    {
+        id: "STU006",
+        name: "نور الدين إبراهيم",
+        answers: {
+            [QUESTIONS[0]]: "الذكاء الاصطناعي مجال ضخم يشمل تطوير أنظمة ذكية تحاكي التفكير البشري والإدراك والتعلم. يشمل مجالات مختلفة مثل تعلم الآلة ورؤية الكمبيوتر ومعالجة اللغات الطبيعية وأنظمة خبيرة.",
+            [QUESTIONS[1]]: "التعلم الآلي ML هو تقنية تعتمد على الخوارزميات لإيجاد أنماط في البيانات. يشمل أساليب مثل الانحدار والتصنيف والتجميع. التعلم العميق DL هو تطور للتعلم الآلي يستخدم شبكات عصبية عميقة ذات طبقات كثيرة. يتفوق في المهام المعقدة كالتعرف على الصور والترجمة.",
+            [QUESTIONS[2]]: "١. التقييم الآلي: أنظمة تقييم إجابات الطلاب المقالية باستخدام NLP\n٢. التعلم الشخصي: مسارات تعليمية مخصصة لكل طالب حسب قدراته\n٣. تحليلات التعلم: استخدام بيانات الطلاب للتنبؤ بأدائهم ومساعدة المتعثرين",
+            [QUESTIONS[3]]: "الشبكات العصبية نماذج حسابية مكونة من عقد (neurons) منظمة في طبقات. تعمل هكذا:\n1. طبقة الإدخال تستقبل البيانات\n2. طبقات مخفية تعالج البيانات\n3. طبقة الإخراج تعطي النتيجة\nكل اتصال له وزن يتم تعديله أثناء التدريب.",
+            [QUESTIONS[4]]: "التحديات تشمل:\n- خصوصية البيانات وحماية المعلومات الشخصية\n- التحيز العنصري والجنسي في الخوارزميات\n- فقدان الوظائف بسبب الأتمتة\n- صعوبة تفسير قرارات النماذج (Black Box)\n- الاستخدام العسكري والمراقبة"
+        }
+    },
+    {
+        id: "STU007",
+        name: "سارة أحمد",
+        answers: {
+            [QUESTIONS[0]]: "هو أن الكمبيوتر يكون ذكي",
+            [QUESTIONS[1]]: "لا أعرف الفرق بالضبط",
+            [QUESTIONS[2]]: "التعليم الإلكتروني",
+            [QUESTIONS[3]]: "شبكات في الكمبيوتر",
+            [QUESTIONS[4]]: "ممكن يكون خطير"
+        }
+    },
+    {
+        id: "STU008",
+        name: "محمد العمري",
+        answers: {
+            [QUESTIONS[0]]: "الذكاء الاصطناعي هو محاكاة الذكاء البشري في الآلات. يتم ذلك من خلال إنشاء برامج وخوارزميات تستطيع التعلم واتخاذ القرارات. من أبرز أنواعه: الذكاء الاصطناعي الضيق (Narrow AI) المتخصص في مهمة واحدة، والذكاء الاصطناعي العام (AGI) الذي يهدف لمحاكاة كامل القدرات البشرية.",
+            [QUESTIONS[1]]: "التعلم الآلي: مظلة واسعة تشمل خوارزميات تتعلم من البيانات. مثل: Random Forest, SVM, KNN, Naive Bayes.\n\nالتعلم العميق: جزء من التعلم الآلي يستخدم Neural Networks بطبقات عميقة. يحتاج بيانات كثيرة وقوة حسابية أكبر لكنه أقوى في المهام المعقدة.",
+            [QUESTIONS[2]]: "تطبيقات AI في التعليم:\n1. Chatbots تعليمية: مثل ChatGPT يساعد في شرح المفاهيم\n2. تصحيح تلقائي: أنظمة تقييم الإجابات المقالية مثل AutoGrader\n3. تحليل سلوك التعلم: تتبع تقدم الطلاب وتقديم توصيات شخصية",
+            [QUESTIONS[3]]: "Artificial Neural Networks مستوحاة من الأعصاب البيولوجية:\n\n- Neurons: وحدات حساب أساسية\n- Weights: أوزان الاتصالات بين الوحدات\n- Bias: قيم إضافية لضبط الإخراج  \n- Activation Functions: مثل Sigmoid, ReLU, Tanh\n- Training: عبر Forward Pass ثم Backpropagation\n- Loss Function: لقياس الخطأ\n- Optimizer: مثل Adam, SGD لتحسين الأوزان",
+            [QUESTIONS[4]]: "مناقشة التحديات الأخلاقية:\n\n1. Privacy & Data Protection: تجمع أنظمة AI بيانات ضخمة مما يهدد خصوصية الأفراد. مثال: كاميرات المراقبة الذكية.\n\n2. Algorithmic Bias: تحيز ناتج عن بيانات تدريب غير متوازنة. مثال: نظام توظيف Amazon المتحيز ضد النساء.\n\n3. Job Displacement: تقرير McKinsey يتوقع فقدان 800 مليون وظيفة بحلول 2030.\n\n4. Accountability: من يتحمل المسؤولية عند خطأ سيارة ذاتية القيادة?\n\n5. Deepfakes: تقنية خطيرة لتزوير مقاطع الفيديو والصوت."
+        }
+    },
+    {
+        id: "STU009",
+        name: "ليلى محمود",
+        answers: {
+            [QUESTIONS[0]]: "الذكاء الاصطناعي هو مجال علمي يهتم ببناء أنظمة حاسوبية ذكية يمكنها التعلم والتكيف وحل المشكلات بشكل مستقل.",
+            [QUESTIONS[1]]: "التعلم الآلي أعم وأشمل ويتضمن التعلم العميق. التعلم العميق متخصص في الشبكات العصبية العميقة ويحقق نتائج أفضل في البيانات غير المهيكلة.",
+            [QUESTIONS[2]]: "1- أنظمة التوصية التعليمية (مثل Khan Academy)\n2- المعلم الآلي والشات بوت التعليمي\n3- تحليل بيانات أداء الطلاب وتوقع النتائج",
+            [QUESTIONS[3]]: "شبكات من العقد الاصطناعية مرتبة في طبقات. تتعلم من خلال تعديل أوزان الاتصالات بين العقد بناءً على البيانات والأخطاء المحسوبة.",
+            [QUESTIONS[4]]: "من أبرز التحديات: حماية الخصوصية، العدالة في القرارات الآلية، المسؤولية القانونية عن الأخطاء، وتأثير الأتمتة على سوق العمل. يجب تطوير أطر أخلاقية وقانونية تنظم استخدام هذه التقنيات."
+        }
+    },
+    {
+        id: "STU010",
+        name: "خالد الرشيدي",
+        answers: {
+            [QUESTIONS[0]]: "AI أو الذكاء الاصطناعي هو عبارة عن تكنولوجيا تمكن الأجهزة من التعلم والتفكير. من أشهر الأمثلة عليه ChatGPT وأنظمة التعرف على الوجه.",
+            [QUESTIONS[1]]: "كلاهما يتعلم من البيانات لكن التعلم العميق أقوى ويحتاج بيانات أكثر. التعلم الآلي يعمل مع بيانات أقل ويكون أسرع في التنفيذ.",
+            [QUESTIONS[2]]: "استخدامات الذكاء الاصطناعي في التعليم:\n- تصحيح الاختبارات أوتوماتيكياً\n- تقديم شرح شخصي لكل طالب\n- تتبع التقدم الدراسي",
+            [QUESTIONS[3]]: "عبارة عن شبكة من العقد المتصلة في طبقات. كل عقدة تحسب قيمة معينة وتمررها للعقدة التالية.",
+            [QUESTIONS[4]]: "التحديات: الخصوصية تحيز الخوارزميات البطالة استخدامات عسكرية. لازم نحط قوانين تنظم كل شي."
+        }
+    },
+    {
+        id: "STU011",
+        name: "هدى عبدالرحمن",
+        answers: {
+            [QUESTIONS[0]]: "الذكاء الاصطناعي (Artificial Intelligence) هو علم وهندسة صنع آلات ذكية، خاصة برامج الحاسوب الذكية. يرتبط بالمهمة المماثلة لاستخدام الحاسبات لفهم الذكاء البشري. الهدف الأساسي هو تطوير أنظمة قادرة على أداء المهام التي تتطلب عادةً ذكاءً بشرياً كالتعلم والإبداع وحل المشكلات.",
+            [QUESTIONS[1]]: "التعلم الآلي (ML):\n- يشمل خوارزميات متنوعة (SVM, Decision Trees, etc.)\n- يتطلب هندسة ميزات يدوية\n- يعمل جيداً مع بيانات مهيكلة\n\nالتعلم العميق (DL):\n- يستخدم شبكات عصبية عميقة\n- يستخلص الميزات تلقائياً\n- يتفوق في الصور والصوت والنصوص\n- يحتاج GPU وبيانات كبيرة",
+            [QUESTIONS[2]]: "تطبيقات عملية في التعليم:\n\n1. التقييم الذكي: أنظمة مثل Grammarly وAutoGrader تقيّم كتابات الطلاب وتقدم ملاحظات فورية. تستخدم NLP لفهم النصوص.\n\n2. Adaptive Learning: منصات مثل DreamBox وKhan Academy تتكيف مع مستوى كل طالب وتقدم محتوى مناسب.\n\n3. Early Warning Systems: أنظمة تحليل بيانات تكتشف الطلاب المعرضين للرسوب مبكراً وتنبه المعلمين.",
+            [QUESTIONS[3]]: "الشبكات العصبية الاصطناعية:\n\nالمفهوم: نموذج رياضي مستلهم من بنية الدماغ. يتكون من:\n• طبقة إدخال (Input Layer)\n• طبقات مخفية (Hidden Layers) - قد تكون عشرات أو مئات\n• طبقة إخراج (Output Layer)\n\nآلية العمل:\n1. Forward Propagation: تمرير البيانات عبر الشبكة\n2. حساب الخطأ عبر Loss Function (مثل Cross-Entropy)\n3. Backpropagation: حساب المشتقات الجزئية\n4. تحديث الأوزان عبر Gradient Descent\n5. تكرار العملية حتى تقليل الخطأ",
+            [QUESTIONS[4]]: "التحديات الأخلاقية - تحليل معمق:\n\n1. الخصوصية: GDPR في أوروبا يحاول معالجة هذا. لكن شركات مثل Meta وGoogle تجمع بيانات ضخمة. مثال: فضيحة Cambridge Analytica.\n\n2. التحيز: دراسات أثبتت تحيز نظام COMPAS للعدالة الجنائية ضد الأمريكيين من أصل أفريقي. الحل: تنويع بيانات التدريب.\n\n3. الشفافية: مشكلة Black Box - لا نستطيع تفسير قرارات النماذج المعقدة. الحل: تطوير Explainable AI (XAI).\n\n4. سوق العمل: تقرير WEF يتوقع اختفاء 85 مليون وظيفة لكن ظهور 97 مليون وظيفة جديدة بحلول 2025.\n\n5. الأسلحة: حملة 'Stop Killer Robots' تدعو لحظر الأسلحة المستقلة."
+        }
+    },
+    {
+        id: "STU012",
+        name: "زيد حمدان",
+        answers: {
+            [QUESTIONS[0]]: "الذكاء الاصطناعي علم يهتم بإنشاء آلات تستطيع التفكير والتعلم. يستخدم في الروبوتات والسيارات ذاتية القيادة والمساعدات الذكية وتحليل البيانات.",
+            [QUESTIONS[1]]: "التعلم الآلي يستخدم خوارزميات بسيطة نسبياً. التعلم العميق يستخدم شبكات عصبية معقدة. الأول أسرع والثاني أدق.",
+            [QUESTIONS[2]]: "1. التصحيح الآلي 2. المعلم الافتراضي 3. تحليل الأداء",
+            [QUESTIONS[3]]: "طبقات من العقد مثل الأعصاب. المدخلات تمر عبر طبقات مخفية وتخرج كنتائج. التدريب يحسن الأوزان.",
+            [QUESTIONS[4]]: "الخصوصية والتحيز والوظائف هي أهم التحديات. أيضاً مسألة من يتحمل المسؤولية عند وقوع أخطاء."
+        }
+    }
+];
+
+// ═══════════════════════════════════════════
+// Default Rules
+// ═══════════════════════════════════════════
+let currentRules = [
+    { id: 'accuracy', name: 'Scientific Accuracy', nameAr: 'الدقة العلمية', weight: 35, type: 'keyword', config: {} },
+    { id: 'completeness', name: 'Completeness', nameAr: 'اكتمال الإجابة', weight: 25, type: 'completeness', config: { minLength: 20, idealLength: 150 } },
+    { id: 'structure', name: 'Structure', nameAr: 'التنظيم والبنية', weight: 20, type: 'structure', config: { requireExamples: true } },
+    { id: 'language', name: 'Language', nameAr: 'جودة اللغة', weight: 20, type: 'length', config: { minLength: 10, idealLength: 200 } }
+];
+
+let analysisResults = null;
+
+// ═══════════════════════════════════════════
+// Initialize
+// ═══════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+    renderTable();
+    renderRules();
+    updateStats();
+});
+
+function updateStats() {
+    document.getElementById('statStudents').textContent = STUDENTS.length;
+    document.getElementById('statQuestions').textContent = QUESTIONS.length;
+    document.getElementById('statAnswers').textContent = STUDENTS.length * QUESTIONS.length;
+}
+
+// ═══════════════════════════════════════════
+// Render Table
+// ═══════════════════════════════════════════
+function renderTable() {
+    const thead = document.getElementById('tableHead');
+    const tbody = document.getElementById('tableBody');
+
+    // Header
+    let headerHTML = '<tr><th>#</th><th>الطالب</th>';
+    QUESTIONS.forEach((q, i) => {
+        headerHTML += `<th>س${i + 1}: ${q.substring(0, 30)}...</th>`;
+    });
+    headerHTML += '</tr>';
+    thead.innerHTML = headerHTML;
+
+    // Body
+    const colors = ['#6366f1', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#06b6d4', '#f97316', '#14b8a6', '#a855f7', '#3b82f6', '#e11d48'];
+    
+    let bodyHTML = '';
+    STUDENTS.forEach((student, idx) => {
+        const color = colors[idx % colors.length];
+        const initials = student.name.split(' ').map(w => w[0]).slice(0, 2).join('');
+        
+        bodyHTML += `<tr>`;
+        bodyHTML += `<td style="color:var(--text-muted); font-size:0.8rem; font-family:monospace;">${idx + 1}</td>`;
+        bodyHTML += `<td><div class="student-name">
+            <div class="student-avatar" style="background:${color}20; color:${color};">${initials}</div>
+            <div>
+                <div>${student.name}</div>
+                <div style="font-size:0.7rem; color:var(--text-muted); font-weight:400;">${student.id}</div>
+            </div>
+        </div></td>`;
+        
+        QUESTIONS.forEach((q) => {
+            const answer = student.answers[q] || '';
+            const truncated = answer.length > 100 ? answer.substring(0, 100) + '...' : answer;
+            bodyHTML += `<td class="answer-cell">
+                <div class="answer-text" id="answer_${student.id}_${QUESTIONS.indexOf(q)}">${truncated}</div>
+                ${answer.length > 100 ? `<button class="expand-btn" onclick="toggleAnswer('${student.id}', ${QUESTIONS.indexOf(q)})">عرض المزيد ↓</button>` : ''}
+            </td>`;
+        });
+        
+        bodyHTML += `</tr>`;
+    });
+    tbody.innerHTML = bodyHTML;
+}
+
+function toggleAnswer(studentId, qIdx) {
+    const el = document.getElementById(`answer_${studentId}_${qIdx}`);
+    const student = STUDENTS.find(s => s.id === studentId);
+    if (!student) return;
+    
+    const isExpanded = el.classList.contains('expanded');
+    if (isExpanded) {
+        const answer = student.answers[QUESTIONS[qIdx]] || '';
+        el.textContent = answer.length > 100 ? answer.substring(0, 100) + '...' : answer;
+        el.classList.remove('expanded');
+        el.nextElementSibling.textContent = 'عرض المزيد ↓';
+    } else {
+        el.textContent = student.answers[QUESTIONS[qIdx]] || '';
+        el.classList.add('expanded');
+        el.nextElementSibling.textContent = 'عرض أقل ↑';
+    }
+}
+
+// ═══════════════════════════════════════════
+// Rules Management
+// ═══════════════════════════════════════════
+function toggleRules() {
+    const panel = document.getElementById('rulesPanel');
+    panel.classList.toggle('visible');
+}
+
+function renderRules() {
+    const container = document.getElementById('rulesContainer');
+    container.innerHTML = currentRules.map((rule, idx) => `
+        <div class="rule-row">
+            <input class="rule-input" value="${rule.nameAr}" placeholder="اسم القاعدة" onchange="currentRules[${idx}].nameAr = this.value">
+            <select class="rule-input" onchange="currentRules[${idx}].type = this.value">
+                <option value="keyword" ${rule.type === 'keyword' ? 'selected' : ''}>كلمات مفتاحية</option>
+                <option value="completeness" ${rule.type === 'completeness' ? 'selected' : ''}>اكتمال</option>
+                <option value="length" ${rule.type === 'length' ? 'selected' : ''}>طول الإجابة</option>
+                <option value="structure" ${rule.type === 'structure' ? 'selected' : ''}>بنية</option>
+                <option value="accuracy" ${rule.type === 'accuracy' ? 'selected' : ''}>دقة</option>
+            </select>
+            <input class="rule-input" type="number" value="${rule.weight}" min="0" max="100" placeholder="الوزن" onchange="currentRules[${idx}].weight = parseInt(this.value)">
+            <button class="btn btn-danger" style="padding:8px 12px; font-size:0.8rem;" onclick="removeRule(${idx})">✕</button>
+        </div>
+    `).join('');
+}
+
+function addRule() {
+    currentRules.push({
+        id: 'rule_' + Date.now(),
+        name: 'New Rule',
+        nameAr: 'قاعدة جديدة',
+        weight: 20,
+        type: 'keyword',
+        config: {}
+    });
+    renderRules();
+}
+
+function removeRule(idx) {
+    currentRules.splice(idx, 1);
+    renderRules();
+}
+
+function loadTemplate() {
+    const template = document.getElementById('templateSelect').value;
+    const templates = {
+        'general': [
+            { id: 'content', name: 'Content', nameAr: 'جودة المحتوى', weight: 40, type: 'keyword', config: {} },
+            { id: 'depth', name: 'Depth', nameAr: 'عمق الإجابة', weight: 30, type: 'completeness', config: { minLength: 15, idealLength: 200 } },
+            { id: 'presentation', name: 'Presentation', nameAr: 'العرض', weight: 30, type: 'length', config: { minLength: 5, idealLength: 150 } }
+        ],
+        'arabic_essay': [
+            { id: 'accuracy', name: 'Accuracy', nameAr: 'الدقة العلمية', weight: 35, type: 'keyword', config: {} },
+            { id: 'completeness', name: 'Completeness', nameAr: 'الاكتمال', weight: 25, type: 'completeness', config: { minLength: 20, idealLength: 150 } },
+            { id: 'structure', name: 'Structure', nameAr: 'البنية', weight: 20, type: 'structure', config: { requireExamples: true } },
+            { id: 'language', name: 'Language', nameAr: 'اللغة', weight: 20, type: 'length', config: { minLength: 10, idealLength: 200 } }
+        ],
+        'quiz': [
+            { id: 'correct', name: 'Correct', nameAr: 'صحة الإجابة', weight: 100, type: 'accuracy', config: {} }
+        ],
+        'programming': [
+            { id: 'code', name: 'Code', nameAr: 'صحة الكود', weight: 40, type: 'keyword', config: {} },
+            { id: 'quality', name: 'Quality', nameAr: 'الجودة', weight: 30, type: 'structure', config: {} },
+            { id: 'complete', name: 'Complete', nameAr: 'الاكتمال', weight: 30, type: 'completeness', config: { minLength: 20, idealLength: 500 } }
+        ]
+    };
+    currentRules = templates[template] || templates['general'];
+    renderRules();
+    showToast('تم تحميل القالب بنجاح', 'success');
+}
+
+// ═══════════════════════════════════════════
+// Send to Extension (Simulate)
+// ═══════════════════════════════════════════
+async function sendToExtension() {
+    showLoading('جاري إرسال البيانات للنظام...');
+    
+    // Transform data to extension format
+    const extensionData = {
+        source: 'OnPage Scraper Extension',
+        url: window.location.href,
+        pageTitle: document.title,
+        timestamp: new Date().toISOString(),
+        data: [],
+        statistics: {
+            totalItems: 0,
+            totalFields: QUESTIONS.length + 1,
+            fieldCounts: {}
+        }
+    };
+
+    STUDENTS.forEach(student => {
+        // Student name
+        extensionData.data.push({
+            id: student.id,
+            fieldName: 'student_name',
+            name: 'اسم الطالب',
+            value: student.name,
+            type: 'text'
+        });
+
+        // Each answer
+        QUESTIONS.forEach((q, qIdx) => {
+            extensionData.data.push({
+                id: `${student.id}_q${qIdx + 1}`,
+                fieldName: `question_${qIdx + 1}`,
+                name: `سؤال ${qIdx + 1}`,
+                value: student.answers[q] || '',
+                type: 'text',
+                metadata: {
+                    studentId: student.id,
+                    studentName: student.name,
+                    questionText: q,
+                    questionIndex: qIdx
+                }
+            });
+        });
+    });
+
+    extensionData.statistics.totalItems = extensionData.data.length;
+
+    try {
+        const response = await fetch('http://localhost:3000/api/scraper-data', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(extensionData)
+        });
+
+        if (response.ok) {
+            hideLoading();
+            showToast(`تم إرسال ${extensionData.data.length} عنصر بنجاح!`, 'success');
+        } else {
+            throw new Error('Failed to send data');
+        }
+    } catch (error) {
+        hideLoading();
+        showToast('تعذر الاتصال بالنظام. تأكد أن الخادم يعمل على localhost:3000', 'error');
+        console.error(error);
+    }
+}
+
+// ═══════════════════════════════════════════
+// AI Analysis
+// ═══════════════════════════════════════════
+async function analyzeWithAI(useAI = false) {
+    showLoading(useAI ? 'جاري التحليل بالذكاء الاصطناعي...' : 'جاري التحليل بالقواعد المحلية...');
+    
+    const requestBody = {
+        students: STUDENTS.map(s => ({
+            id: s.id,
+            name: s.name,
+            answers: s.answers
+        })),
+        questions: QUESTIONS,
+        rules: currentRules,
+        useAI: useAI,
+        language: 'ar'
+    };
+
+    try {
+        const response = await fetch('http://localhost:3000/api/extension/analyze', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(requestBody)
+        });
+
+        const data = await response.json();
+        
+        if (data.success) {
+            analysisResults = data;
+            renderResults(data);
+            hideLoading();
+            showToast(`تم تحليل ${data.metadata.totalResults} إجابة بنجاح!`, 'success');
+        } else {
+            throw new Error(data.error || 'Analysis failed');
+        }
+    } catch (error) {
+        hideLoading();
+        
+        // Fallback: local analysis
+        console.warn('Server unavailable, running local analysis');
+        const localResults = analyzeLocally(requestBody);
+        analysisResults = localResults;
+        renderResults(localResults);
+        showToast('تم التحليل محلياً (الخادم غير متاح)', 'info');
+    }
+}
+
+function analyzeLocally(request) {
+    const startTime = Date.now();
+    const results = [];
+
+    for (const student of request.students) {
+        for (const question of request.questions) {
+            const answer = student.answers[question] || '';
+            const ruleScores = {};
+            let totalWeighted = 0;
+            let totalWeight = 0;
+
+            for (const rule of request.rules) {
+                const score = evaluateRuleLocal(rule, answer);
+                ruleScores[rule.id] = {
+                    score,
+                    comment: `${rule.nameAr}: ${score}/100`,
+                    weight: rule.weight,
+                    weightedScore: (score * rule.weight) / 100
+                };
+                totalWeighted += (score * rule.weight) / 100;
+                totalWeight += rule.weight;
+            }
+
+            const totalScore = totalWeight > 0 ? Math.round((totalWeighted / totalWeight) * 100) : 0;
+            const gradeInfo = getGradeLocal(totalScore);
+
+            results.push({
+                studentId: student.id,
+                studentName: student.name,
+                question,
+                answer: answer.substring(0, 500),
+                totalScore,
+                grade: gradeInfo.grade,
+                gradeAr: gradeInfo.gradeAr,
+                gradeColor: gradeInfo.color,
+                ruleScores,
+                aiAnalysis: null,
+                timestamp: new Date().toISOString()
+            });
+        }
+    }
+
+    // Summary
+    const scores = results.map(r => r.totalScore);
+    const avg = scores.length > 0 ? scores.reduce((a, b) => a + b, 0) / scores.length : 0;
+    const sorted = [...scores].sort((a, b) => a - b);
+    const median = sorted.length % 2 === 0 ? (sorted[sorted.length / 2 - 1] + sorted[sorted.length / 2]) / 2 : sorted[Math.floor(sorted.length / 2)];
+
+    const gradeDistribution = {};
+    results.forEach(r => { gradeDistribution[r.gradeAr] = (gradeDistribution[r.gradeAr] || 0) + 1; });
+
+    const studentAverages = {};
+    results.forEach(r => {
+        if (!studentAverages[r.studentName]) studentAverages[r.studentName] = { total: 0, count: 0 };
+        studentAverages[r.studentName].total += r.totalScore;
+        studentAverages[r.studentName].count += 1;
+    });
+    const studentRanking = Object.entries(studentAverages)
+        .map(([name, s]) => ({ name, average: Math.round(s.total / s.count) }))
+        .sort((a, b) => b.average - a.average);
+
+    return {
+        success: true,
+        results,
+        summary: {
+            averageScore: Math.round(avg),
+            medianScore: Math.round(median),
+            highestScore: Math.max(...scores),
+            lowestScore: Math.min(...scores),
+            passRate: Math.round((scores.filter(s => s >= 60).length / scores.length) * 100),
+            gradeDistribution,
+            studentRanking,
+            topPerformers: studentRanking.filter(s => s.average >= 80).map(s => s.name),
+            atRiskStudents: studentRanking.filter(s => s.average < 60).map(s => s.name)
+        },
+        metadata: {
+            totalStudents: request.students.length,
+            totalQuestions: request.questions.length,
+            totalResults: results.length,
+            processingTime: Date.now() - startTime,
+            aiEnhanced: false,
+            rulesApplied: request.rules.length,
+            timestamp: new Date().toISOString()
+        }
+    };
+}
+
+function evaluateRuleLocal(rule, answer) {
+    const len = (answer || '').trim().length;
+    const normalized = (answer || '').trim().toLowerCase();
+
+    switch (rule.type) {
+        case 'keyword': return Math.min(100, Math.max(0, len > 10 ? 55 + Math.min(45, len / 4) : (len > 0 ? 20 : 0)));
+        case 'length': {
+            const min = rule.config?.minLength || 10;
+            const ideal = rule.config?.idealLength || 200;
+            if (len === 0) return 0;
+            if (len < min) return Math.round((len / min) * 40);
+            return Math.round(Math.max(60, 100 - Math.abs(len - ideal) / ideal * 40));
+        }
+        case 'completeness': {
+            const min = rule.config?.minLength || 15;
+            const ideal = rule.config?.idealLength || 200;
+            const sentences = (answer || '').split(/[.!?،؟\n]+/).filter(s => s.trim().length > 3);
+            if (len >= ideal) return Math.min(100, 85 + sentences.length * 3);
+            if (len >= min) return 40 + Math.round(((len - min) / (ideal - min)) * 50);
+            if (len > 0) return Math.round((len / min) * 40);
+            return 0;
+        }
+        case 'structure': {
+            const paragraphs = (answer || '').split(/\n\n+/).filter(p => p.trim().length > 5);
+            const sentences = (answer || '').split(/[.!?،؟\n]+/).filter(s => s.trim().length > 3);
+            const hasExamples = /مثال|مثلاً|على سبيل|example/i.test(answer || '');
+            return Math.min(100, Math.round(40 + (paragraphs.length >= 2 ? 20 : 0) + (sentences.length >= 3 ? 15 : 0) + (hasExamples ? 15 : 0) + Math.min(10, len / 50)));
+        }
+        case 'accuracy': return len > 10 ? 60 + Math.min(30, len / 10) : (len > 0 ? 25 : 0);
+        default: return 50;
+    }
+}
+
+function getGradeLocal(score) {
+    if (score >= 90) return { grade: 'Excellent', gradeAr: 'ممتاز', color: '#10b981' };
+    if (score >= 80) return { grade: 'Very Good', gradeAr: 'جيد جداً', color: '#3b82f6' };
+    if (score >= 70) return { grade: 'Good', gradeAr: 'جيد', color: '#f59e0b' };
+    if (score >= 60) return { grade: 'Acceptable', gradeAr: 'مقبول', color: '#f97316' };
+    if (score >= 50) return { grade: 'Weak', gradeAr: 'ضعيف', color: '#ef4444' };
+    return { grade: 'Fail', gradeAr: 'راسب', color: '#dc2626' };
+}
+
+// ═══════════════════════════════════════════
+// Render Results
+// ═══════════════════════════════════════════
+function renderResults(data) {
+    const section = document.getElementById('resultsSection');
+    section.classList.add('visible');
+
+    // Summary
+    const summary = data.summary;
+    document.getElementById('summarySubtitle').textContent = 
+        `تم تحليل ${data.metadata.totalResults} إجابة في ${data.metadata.processingTime}ms • ${data.metadata.aiEnhanced ? 'تحليل بالذكاء الاصطناعي' : 'تحليل بالقواعد المحلية'}`;
+
+    const summaryHTML = `
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: ${summary.averageScore >= 70 ? '#10b981' : summary.averageScore >= 50 ? '#f59e0b' : '#ef4444'}">${summary.averageScore}</div>
+            <div class="summary-stat-label">المعدل العام</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: var(--accent-light)">${summary.medianScore}</div>
+            <div class="summary-stat-label">الوسيط</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: #10b981">${summary.highestScore}</div>
+            <div class="summary-stat-label">الأعلى</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: #ef4444">${summary.lowestScore}</div>
+            <div class="summary-stat-label">الأدنى</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: #06b6d4">${summary.passRate}%</div>
+            <div class="summary-stat-label">نسبة النجاح</div>
+        </div>
+        <div class="summary-stat">
+            <div class="summary-stat-value" style="color: #f59e0b">${data.metadata.processingTime}ms</div>
+            <div class="summary-stat-label">وقت التحليل</div>
+        </div>
+    `;
+    document.getElementById('summaryStats').innerHTML = summaryHTML;
+
+    // Group results by student
+    const byStudent = {};
+    data.results.forEach(r => {
+        if (!byStudent[r.studentName]) byStudent[r.studentName] = [];
+        byStudent[r.studentName].push(r);
+    });
+
+    // Render result cards
+    const ranking = summary.studentRanking || [];
+    let cardsHTML = '';
+
+    ranking.forEach((student, idx) => {
+        const results = byStudent[student.name] || [];
+        const gradeInfo = getGradeLocal(student.average);
+        
+        cardsHTML += `
+        <div class="result-card" style="border-right: 3px solid ${gradeInfo.color};">
+            <div class="result-header">
+                <div>
+                    <div style="font-size:0.75rem; color:var(--text-muted); margin-bottom:4px;">الترتيب #${idx + 1}</div>
+                    <div style="font-size:1.1rem; font-weight:700;">${student.name}</div>
+                </div>
+                <div style="text-align:left;">
+                    <div class="result-score" style="color:${gradeInfo.color};">${student.average}</div>
+                    <div class="result-grade" style="background:${gradeInfo.color}20; color:${gradeInfo.color}; margin-top:4px;">
+                        ${gradeInfo.gradeAr}
+                    </div>
+                </div>
+            </div>
+            
+            ${results.map((r, rIdx) => `
+                <div style="margin-bottom:12px; padding:12px; background:rgba(0,0,0,0.15); border-radius:12px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+                        <span style="font-size:0.8rem; color:var(--text-muted);">س${rIdx + 1}</span>
+                        <span style="font-size:1.1rem; font-weight:800; color:${getGradeLocal(r.totalScore).color};">${r.totalScore}/100</span>
+                    </div>
+                    ${Object.entries(r.ruleScores || {}).map(([ruleId, ruleData]) => `
+                        <div class="rule-bar">
+                            <div class="rule-label">
+                                <span>${ruleData.comment || ruleId}</span>
+                                <span>${ruleData.score}/100</span>
+                            </div>
+                            <div class="rule-track">
+                                <div class="rule-fill" style="width:${ruleData.score}%; background:${ruleData.score >= 70 ? '#10b981' : ruleData.score >= 50 ? '#f59e0b' : '#ef4444'};"></div>
+                            </div>
+                        </div>
+                    `).join('')}
+                    ${r.aiAnalysis ? `
+                        <div class="ai-feedback">
+                            <div style="font-size:0.75rem; color:var(--accent-light); font-weight:700; margin-bottom:6px;">🤖 تحليل الذكاء الاصطناعي</div>
+                            ${r.aiAnalysis.feedback || ''}
+                            ${r.aiAnalysis.strengths?.length ? `<div style="margin-top:6px; color:#10b981;">✓ ${r.aiAnalysis.strengths.join(' • ')}</div>` : ''}
+                            ${r.aiAnalysis.weaknesses?.length ? `<div style="margin-top:4px; color:#ef4444;">✗ ${r.aiAnalysis.weaknesses.join(' • ')}</div>` : ''}
+                        </div>
+                    ` : ''}
+                </div>
+            `).join('')}
+        </div>`;
+    });
+
+    document.getElementById('resultsGrid').innerHTML = cardsHTML;
+    section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// ═══════════════════════════════════════════
+// Export
+// ═══════════════════════════════════════════
+function exportCSV() {
+    if (!analysisResults) {
+        showToast('لا توجد نتائج للتصدير. قم بالتحليل أولاً.', 'error');
+        return;
+    }
+
+    const headers = ['Student ID', 'Student Name', 'Question', 'Score', 'Grade', 'Grade (AR)'];
+    const rows = analysisResults.results.map(r => [
+        r.studentId,
+        r.studentName,
+        `"${r.question.replace(/"/g, '""')}"`,
+        r.totalScore,
+        r.grade,
+        r.gradeAr
+    ]);
+
+    const csv = '\uFEFF' + [headers.join(','), ...rows.map(r => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `student_analysis_${Date.now()}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast('تم تصدير النتائج بنجاح', 'success');
+}
+
+// ═══════════════════════════════════════════
+// Utilities
+// ═══════════════════════════════════════════
+function showLoading(text) {
+    document.getElementById('loadingText').textContent = text;
+    document.getElementById('loadingOverlay').classList.add('visible');
+    animateProgress();
+}
+
+function hideLoading() {
+    document.getElementById('loadingOverlay').classList.remove('visible');
+    document.getElementById('progressBar').style.width = '0%';
+}
+
+let progressInterval;
+function animateProgress() {
+    let progress = 0;
+    clearInterval(progressInterval);
+    progressInterval = setInterval(() => {
+        progress += Math.random() * 15;
+        if (progress > 90) progress = 90;
+        document.getElementById('progressBar').style.width = progress + '%';
+    }, 300);
+}
+
+function showToast(text, type) {
+    const toast = document.getElementById('toast');
+    const toastText = document.getElementById('toastText');
+    const toastIcon = document.getElementById('toastIcon');
+    
+    toast.className = `toast toast-${type} visible`;
+    toastText.textContent = text;
+    toastIcon.textContent = type === 'success' ? '✓' : type === 'error' ? '✗' : 'ℹ';
+    
+    setTimeout(() => toast.classList.remove('visible'), 4000);
+}
+</script>
+</body>
+</html>

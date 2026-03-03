@@ -7,6 +7,8 @@ import gradeAssignmentsWorkflow from './workflows/grade-assignments.json';
 import studentAnalyticsWorkflow from './workflows/student-analytics.json';
 import generateRubricWorkflow from './workflows/generate-rubric.json';
 import generateFeedbackWorkflow from './workflows/generate-feedback.json';
+import gradeExtensionAssignmentsWorkflow from './workflows/grade-extension-assignments.json';
+import gradeExtensionQuizWorkflow from './workflows/grade-extension-quiz.json';
 import { WorkflowGenerator, type TaskInput } from './WorkflowGenerator';
 
 const CUSTOM_WORKFLOWS_STORAGE_KEY = 'autograder.customWorkflows.v1';
@@ -88,7 +90,29 @@ export class WorkflowRegistry {
       isPredefined: true
     });
 
-    console.log('Workflow Registry initialized with 4 predefined workflows');
+    this.workflows.set(5, {
+      id: 'grade-extension-assignments-001',
+      taskId: 5,
+      name: 'Grade Extension Assignments',
+      description: 'Grade assignments extracted from browser extension',
+      icon: '🔌',
+      outputFormat: 'csv',
+      workflow: gradeExtensionAssignmentsWorkflow,
+      isPredefined: true
+    });
+
+    this.workflows.set(6, {
+      id: 'grade-extension-quiz-001',
+      taskId: 6,
+      name: 'Grade Extension Quiz',
+      description: 'Grade quiz answers extracted from browser extension',
+      icon: '📱',
+      outputFormat: 'csv',
+      workflow: gradeExtensionQuizWorkflow,
+      isPredefined: true
+    });
+
+    console.log('Workflow Registry initialized with 6 predefined workflows (4 Moodle + 2 Extension)');
   }
 
   /**

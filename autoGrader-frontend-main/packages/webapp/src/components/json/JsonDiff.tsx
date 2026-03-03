@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+﻿import React, { useState } from 'react';
 import { JsonProcessor } from '@/lib/json/JsonProcessor';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlus, faMinus, faEdit, faEquals } from '@fortawesome/free-solid-svg-icons';
@@ -78,13 +78,13 @@ export const JsonDiff: React.FC<JsonDiffProps> = ({
                         >
                             <div className="flex items-start gap-3">
                                 <FontAwesomeIcon
-                                    icon={
+                                    icon={(
                                         diff.type === 'added'
                                             ? faPlus
                                             : diff.type === 'removed'
                                             ? faMinus
                                             : (faEdit as any)
-                                    }
+                                    ) as any}
                                     className={`mt-1 ${
                                         diff.type === 'added'
                                             ? 'text-green-500'
@@ -130,3 +130,4 @@ export const JsonDiff: React.FC<JsonDiffProps> = ({
 };
 
 export default JsonDiff;
+

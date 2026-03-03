@@ -13,10 +13,14 @@ class ResilienceEngine {
             'byId',
             'byClass',
             'byAttribute',
+            'byDataAttribute',
+            'byAriaLabel',
             'byText',
             'byPosition',
             'byStructure',
-            'bySimilarity'
+            'bySimilarity',
+            'byXPath',
+            'byCombined'
         ];
 
         // درجات الثقة
@@ -45,18 +49,26 @@ class ResilienceEngine {
 
         while (attempt < maxRetries) {
             try {
-                // محاولة الاستخراج
-                const element = document.querySelector(selector);
+                let element = null;
+
+                // Handle XPath selectors
+                if (selector.startsWith('xpath:')) {
+                    const xpath = selector.substring(6);
+                    const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                    element = result.singleNodeValue;
+                } else {
+                    element = document.querySelector(selector);
+                }
 
                 if (element) {
-                    // نجح! حفظ في التاريخ
                     this.recordSuccess(selector, element);
                     return {
                         success: true,
                         element: element,
                         selector: selector,
                         confidence: 1.0,
-                        attempts: attempt + 1
+                        attempts: attempt + 1,
+                        strategy: 'direct'
                     };
                 }
 
@@ -67,7 +79,6 @@ class ResilienceEngine {
                     if (healed.success) {
                         console.log(`🔧 Self-healed selector: ${selector} → ${healed.selector}`);
 
-                        // تعلم من الإصلاح
                         if (learnFromFailure) {
                             this.learnFromHealing(selector, healed.selector);
                         }
@@ -82,13 +93,10 @@ class ResilienceEngine {
             } catch (error) {
                 lastError = error;
                 attempt++;
-
-                // انتظار قصير قبل المحاولة التالية
                 await this.delay(100 * attempt);
             }
         }
 
-        // فشلت جميع المحاولات
         return {
             success: false,
             error: lastError.message,
@@ -111,30 +119,49 @@ class ResilienceEngine {
 
         while (attempt < maxRetries) {
             try {
-                const elements = document.querySelectorAll(selector);
+                let elements = null;
+
+                // Handle XPath selectors
+                if (selector.startsWith('xpath:')) {
+                    const xpath = selector.substring(6);
+                    const xpathResult = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+                    const xpathElements = [];
+                    for (let i = 0; i < xpathResult.snapshotLength; i++) {
+                        xpathElements.push(xpathResult.snapshotItem(i));
+                    }
+                    elements = xpathElements;
+                } else {
+                    elements = Array.from(document.querySelectorAll(selector));
+                }
 
                 if (elements && elements.length > 0) {
-                    // تسجيل نجاح لأول عنصر كممثل
                     this.recordSuccess(selector, elements[0]);
                     return {
                         success: true,
-                        elements: Array.from(elements),
+                        elements: elements,
                         selector: selector,
                         confidence: 1.0,
                         attempts: attempt + 1
                     };
                 }
 
-                // فشل - محاولة الإصلاح باستخدام healSelector
                 if (fallbackStrategies) {
                     const healed = await this.healSelector(selector);
                     if (healed.success) {
-                        const healedElements = document.querySelectorAll(healed.selector);
+                        let healedElements;
+                        if (healed.selector.startsWith('xpath:')) {
+                            const xpath = healed.selector.substring(6);
+                            const xr = document.evaluate(xpath, document, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+                            healedElements = [];
+                            for (let i = 0; i < xr.snapshotLength; i++) healedElements.push(xr.snapshotItem(i));
+                        } else {
+                            healedElements = Array.from(document.querySelectorAll(healed.selector));
+                        }
                         if (healedElements && healedElements.length > 0) {
                             console.log(`🔧 Self-healed ALL selector: ${selector} → ${healed.selector}`);
                             return {
                                 ...healed,
-                                elements: Array.from(healedElements)
+                                elements: healedElements
                             };
                         }
                     }
@@ -193,38 +220,239 @@ class ResilienceEngine {
     }
 
     /**
-     * تجربة استراتيجية إصلاح محددة
+     * تجربة استراتيجية إصلاح محددة - محسّن مع استراتيجيات جديدة
      */
     async tryHealingStrategy(selector, strategy) {
         try {
             switch (strategy) {
                 case 'byId':
                     return this.healById(selector);
-
                 case 'byClass':
                     return this.healByClass(selector);
-
                 case 'byAttribute':
                     return this.healByAttribute(selector);
-
+                case 'byDataAttribute':
+                    return this.healByDataAttribute(selector);
+                case 'byAriaLabel':
+                    return this.healByAriaLabel(selector);
                 case 'byText':
                     return this.healByText(selector);
-
                 case 'byPosition':
                     return this.healByPosition(selector);
-
                 case 'byStructure':
                     return this.healByStructure(selector);
-
                 case 'bySimilarity':
                     return this.healBySimilarity(selector);
-
+                case 'byXPath':
+                    return this.healByXPath(selector);
+                case 'byCombined':
+                    return this.healByCombined(selector);
                 default:
                     return { success: false };
             }
         } catch (error) {
             return { success: false, error: error.message };
         }
+    }
+
+    /**
+     * الإصلاح بواسطة data-* attributes
+     */
+    healByDataAttribute(selector) {
+        const historical = this.selectorHistory.get(selector);
+        if (!historical?.structure?.attributes) return { success: false };
+
+        const dataAttrs = Object.entries(historical.structure.attributes)
+            .filter(([key]) => key.startsWith('data-'));
+
+        for (const [attr, value] of dataAttrs) {
+            const sel = `[${attr}="${value}"]`;
+            const element = document.querySelector(sel);
+            if (element) {
+                return {
+                    success: true,
+                    element,
+                    selector: sel,
+                    confidence: 0.85,
+                    strategy: 'byDataAttribute'
+                };
+            }
+        }
+
+        return { success: false };
+    }
+
+    /**
+     * الإصلاح بواسطة aria-label
+     */
+    healByAriaLabel(selector) {
+        const historical = this.selectorHistory.get(selector);
+        if (!historical?.structure?.attributes?.['aria-label']) return { success: false };
+
+        const label = historical.structure.attributes['aria-label'];
+        const sel = `[aria-label="${label}"]`;
+        const element = document.querySelector(sel);
+
+        if (element) {
+            return {
+                success: true,
+                element,
+                selector: sel,
+                confidence: 0.9,
+                strategy: 'byAriaLabel'
+            };
+        }
+
+        return { success: false };
+    }
+
+    /**
+     * الإصلاح بواسطة XPath (استراتيجية جديدة)
+     */
+    healByXPath(selector) {
+        const historical = this.selectorHistory.get(selector);
+        if (!historical) return { success: false };
+
+        // Try to build XPath from historical data
+        const { tag, attributes, children: childCount } = historical.structure || {};
+        if (!tag) return { success: false };
+
+        // Build XPath conditions
+        const conditions = [];
+        if (attributes) {
+            if (attributes.id) conditions.push(`@id="${attributes.id}"`);
+            if (attributes.class) {
+                const cls = attributes.class.split(' ')[0];
+                if (cls) conditions.push(`contains(@class, "${cls}")`);
+            }
+            Object.entries(attributes).filter(([k]) => k.startsWith('data-')).forEach(([k, v]) => {
+                conditions.push(`@${k}="${v}"`);
+            });
+        }
+
+        // Also try text-based XPath
+        if (historical.text && historical.text.length > 5) {
+            const shortText = historical.text.substring(0, 50);
+            const textXPath = `//${tag}[contains(text(), "${shortText.replace(/"/g, "'")}")]`;
+            try {
+                const result = document.evaluate(textXPath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                if (result.singleNodeValue) {
+                    return {
+                        success: true,
+                        element: result.singleNodeValue,
+                        selector: `xpath:${textXPath}`,
+                        confidence: 0.75,
+                        strategy: 'byXPath'
+                    };
+                }
+            } catch (_) {}
+        }
+
+        if (conditions.length > 0) {
+            const xpath = `//${tag}[${conditions.join(' and ')}]`;
+            try {
+                const result = document.evaluate(xpath, document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null);
+                if (result.singleNodeValue) {
+                    return {
+                        success: true,
+                        element: result.singleNodeValue,
+                        selector: `xpath:${xpath}`,
+                        confidence: 0.7,
+                        strategy: 'byXPath'
+                    };
+                }
+            } catch (_) {}
+        }
+
+        return { success: false };
+    }
+
+    /**
+     * الإصلاح بدمج عدة استراتيجيات (استراتيجية جديدة)
+     */
+    healByCombined(selector) {
+        const historical = this.selectorHistory.get(selector);
+        if (!historical) return { success: false };
+
+        // Score candidates using multiple signals
+        const candidates = [];
+        const tag = historical.structure?.tag;
+        if (!tag) return { success: false };
+
+        const allElements = document.querySelectorAll(tag);
+        const MAX_CANDIDATES = 200;
+        let checked = 0;
+
+        for (const el of allElements) {
+            if (checked >= MAX_CANDIDATES) break;
+            checked++;
+
+            let score = 0;
+            let signals = 0;
+
+            // Signal 1: Text similarity
+            if (historical.text) {
+                const elText = el.textContent?.trim().substring(0, 100) || '';
+                const textSim = this.calculateTextSimilarity(historical.text, elText);
+                score += textSim * 40;
+                signals++;
+            }
+
+            // Signal 2: Attribute overlap
+            if (historical.structure?.attributes) {
+                const attrs = historical.structure.attributes;
+                let attrMatch = 0;
+                let attrTotal = Object.keys(attrs).filter(k => k !== 'style').length;
+                for (const [key, value] of Object.entries(attrs)) {
+                    if (key === 'style') continue;
+                    if (el.getAttribute(key) === value) attrMatch++;
+                }
+                if (attrTotal > 0) {
+                    score += (attrMatch / attrTotal) * 30;
+                    signals++;
+                }
+            }
+
+            // Signal 3: Children count similarity
+            if (historical.structure?.children !== undefined) {
+                const diff = Math.abs(el.children.length - historical.structure.children);
+                const childScore = Math.max(0, 1 - diff / 10);
+                score += childScore * 15;
+                signals++;
+            }
+
+            // Signal 4: Position similarity
+            if (historical.position?.index !== undefined) {
+                const parent = el.parentElement;
+                if (parent) {
+                    const idx = Array.from(parent.children).indexOf(el);
+                    const diff = Math.abs(idx - historical.position.index);
+                    const posScore = Math.max(0, 1 - diff / 10);
+                    score += posScore * 15;
+                    signals++;
+                }
+            }
+
+            if (signals > 0 && score > 40) {
+                candidates.push({ element: el, score, signals });
+            }
+        }
+
+        // Pick best
+        candidates.sort((a, b) => b.score - a.score);
+        if (candidates.length > 0 && candidates[0].score > 50) {
+            const best = candidates[0];
+            return {
+                success: true,
+                element: best.element,
+                selector: this.generateSelector(best.element),
+                confidence: Math.min(best.score / 100, 0.95),
+                strategy: 'byCombined',
+                signals: best.signals
+            };
+        }
+
+        return { success: false };
     }
 
     /**

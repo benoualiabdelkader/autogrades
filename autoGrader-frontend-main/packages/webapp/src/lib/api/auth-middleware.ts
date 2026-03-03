@@ -81,11 +81,23 @@ function extractToken(req: NextApiRequest): string | null {
 
 /**
  * Authentication middleware - verifies JWT token
+ * In development mode, bypasses auth with mock user for testing
  */
 export async function requireAuth(
   req: AuthenticatedRequest,
   res: NextApiResponse
 ): Promise<boolean> {
+  // Development bypass - allows testing without login
+  if (process.env.NODE_ENV !== 'production') {
+    req.user = {
+      id: 'dev-user-1',
+      email: 'dev@autograder.local',
+      role: 'admin',
+      institutionId: 'dev-institution'
+    };
+    return true;
+  }
+
   const token = extractToken(req);
 
   if (!token) {

@@ -25,7 +25,6 @@ export interface QueuedTask {
 }
 
 export interface QueueConfig {
-  maxConcurrent: number; // عدد المهام المتزامنة
   minConcurrent: number; // الحد الأدنى
   maxConcurrent: number; // الحد الأقصى
   adaptiveScaling: boolean; // تكيف تلقائي حسب الأداء
@@ -71,7 +70,7 @@ export class WorkflowQueue {
       ...config
     };
     this.currentConcurrency = this.config.minConcurrent;
-    
+
     // استعادة الحالة المحفوظة
     if (this.config.persistState) {
       this.restoreState();
@@ -134,7 +133,7 @@ export class WorkflowQueue {
     while (this.isRunning && (this.queue.length > 0 || this.processing.size > 0)) {
       // معالجة المهام المتاحة
       await this.processAvailableTasks();
-      
+
       // انتظار قصير قبل التحقق مرة أخرى
       await this.delay(100);
     }
@@ -236,7 +235,7 @@ export class WorkflowQueue {
   private async processAvailableTasks(): Promise<void> {
     // حساب عدد المهام التي يمكن معالجتها
     const availableSlots = this.currentConcurrency - this.processing.size;
-    
+
     if (availableSlots <= 0 || this.queue.length === 0) {
       return;
     }
@@ -271,13 +270,13 @@ export class WorkflowQueue {
       task.status = 'completed';
       task.completedAt = new Date();
       task.result = result;
-      
+
       this.processing.delete(task.id);
       this.completed.push(task);
-      
+
       const processingTime = Date.now() - startTime;
       this.processingTimes.push(processingTime);
-      
+
       // الاحتفاظ بآخر 100 وقت فقط
       if (this.processingTimes.length > 100) {
         this.processingTimes.shift();
@@ -298,19 +297,19 @@ export class WorkflowQueue {
         task.retries++;
         task.status = 'pending';
         this.processing.delete(task.id);
-        
+
         console.log(`🔄 Retrying task: ${task.id} (attempt ${task.retries}/${task.maxRetries})`);
-        
+
         // إعادة إلى القائمة مع تأخير
         await this.delay(this.config.retryDelay * task.retries);
         this.queue.unshift(task); // إضافة في البداية
-        
+
       } else {
         // فشل نهائي
         task.status = 'failed';
         task.completedAt = new Date();
         task.error = error.message;
-        
+
         this.processing.delete(task.id);
         this.failed.push(task);
 
@@ -439,7 +438,7 @@ export class WorkflowQueue {
       if (!stored) return;
 
       const state = JSON.parse(stored);
-      
+
       // استعادة المهام المعلقة فقط
       this.queue = state.queue
         .filter((t: QueuedTask) => t.status === 'pending')

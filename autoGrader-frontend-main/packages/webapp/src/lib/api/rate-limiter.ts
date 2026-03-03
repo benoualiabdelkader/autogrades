@@ -16,11 +16,11 @@ const rateLimitStore = new Map<string, RateLimitEntry>();
 // Cleanup old entries every 5 minutes
 setInterval(() => {
   const now = Date.now();
-  for (const [key, entry] of rateLimitStore.entries()) {
+  rateLimitStore.forEach((entry, key) => {
     if (entry.resetTime < now) {
       rateLimitStore.delete(key);
     }
-  }
+  });
 }, 5 * 60 * 1000);
 
 export interface RateLimitConfig {
@@ -108,7 +108,7 @@ export function rateLimit(config: RateLimitConfig) {
     // Check if limit exceeded
     if (entry.count > config.maxRequests) {
       const retryAfter = Math.ceil((entry.resetTime - now) / 1000);
-      
+
       res.setHeader('X-RateLimit-Limit', config.maxRequests.toString());
       res.setHeader('X-RateLimit-Remaining', '0');
       res.setHeader('X-RateLimit-Reset', entry.resetTime.toString());
@@ -146,7 +146,7 @@ export function withRateLimit(
   return async (req: NextApiRequest, res: NextApiResponse) => {
     const limiter = rateLimit(config);
     const allowed = await limiter(req, res);
-    
+
     if (!allowed) {
       return;
     }

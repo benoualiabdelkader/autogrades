@@ -1,10 +1,11 @@
-"use client";
+﻿"use client";
 
 import React, { useState, useEffect } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { faPlay, faUsers, faQuestionCircle, faCheckCircle } from '@fortawesome/free-solid-svg-icons';
 import GradeAssignmentModal from '@/components/GradeAssignmentModal';
 import Sidebar from '@/components/Sidebar';
+import { PageHeader, Card, StatCard, Button } from "@/components/ui/UnifiedUI";
 
 interface StudentData {
     name: string;
@@ -25,15 +26,15 @@ export default function GradingDemo() {
         try {
             const response = await fetch('/students_quiz.csv');
             const csvText = await response.text();
-            
+
             // Parse CSV
             const lines = csvText.split('\n').filter(line => line.trim());
             const headers = lines[0].split(',');
-            
+
             // Extract questions (skip first column which is "Student Name")
             const questionHeaders = headers.slice(1).map(h => h.trim());
             setQuestions(questionHeaders);
-            
+
             // Parse student data
             const studentData: StudentData[] = [];
             for (let i = 1; i < lines.length; i++) {
@@ -41,18 +42,18 @@ export default function GradingDemo() {
                 if (values.length > 1) {
                     const studentName = values[0].trim();
                     const answers: { [key: string]: string } = {};
-                    
+
                     for (let j = 1; j < values.length && j <= questionHeaders.length; j++) {
                         answers[questionHeaders[j - 1]] = values[j]?.trim() || '';
                     }
-                    
+
                     studentData.push({
                         name: studentName,
                         answers
                     });
                 }
             }
-            
+
             setStudents(studentData);
             setLoading(false);
         } catch (error) {
@@ -65,7 +66,7 @@ export default function GradingDemo() {
         <div className="flex h-screen bg-background overflow-hidden text-foreground">
             <Sidebar />
 
-            <main className="flex-1 ml-64 p-8 overflow-y-auto">
+            <main className="flex-1 ml-64 p-8 overflow-y-auto page-transition">
                 {/* Background Gradients */}
                 <div className="absolute inset-0 pointer-events-none overflow-hidden">
                     <div className="absolute top-0 right-0 w-[500px] h-[500px] bg-blue-600/10 blur-[120px] rounded-full -translate-y-1/2 translate-x-1/2" />
@@ -73,64 +74,47 @@ export default function GradingDemo() {
                 </div>
 
                 <div className="relative z-10 max-w-6xl mx-auto">
-                    {/* Header */}
-                    <div className="mb-8">
-                        <h1 className="text-4xl font-bold premium-text-gradient mb-2">
-                            ديمو تقييم الواجبات
-                        </h1>
-                        <p className="text-muted-foreground">
-                            تجربة نظام التقييم الآلي باستخدام بيانات الطلاب الحقيقية
-                        </p>
-                    </div>
+                    <PageHeader
+                        icon={faCheckCircle as any}
+                        title="ديمو تقييم الواجبات"
+                        subtitle="تجربة نظام التقييم الآلي باستخدام بيانات الطلاب الحقيقية"
+                        gradient="primary"
+                    />
 
                     {loading ? (
-                        <div className="glass-card p-12 text-center">
+                        <Card className="p-12 text-center">
                             <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto mb-4"></div>
                             <p className="text-muted-foreground">جاري تحميل البيانات...</p>
-                        </div>
+                        </Card>
                     ) : (
                         <>
                             {/* Stats Cards */}
                             <div className="grid grid-cols-3 gap-6 mb-8">
-                                <div className="glass-card p-6 border-l-4 border-l-primary">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-xl bg-primary/20 flex items-center justify-center">
-                                            <FontAwesomeIcon icon={faUsers as any} className="text-2xl text-primary" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">عدد الطلاب</p>
-                                            <p className="text-3xl font-bold">{students.length}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="glass-card p-6 border-l-4 border-l-blue-500">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-xl bg-blue-500/20 flex items-center justify-center">
-                                            <FontAwesomeIcon icon={faQuestionCircle as any} className="text-2xl text-blue-500" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">عدد الأسئلة</p>
-                                            <p className="text-3xl font-bold">{questions.length}</p>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div className="glass-card p-6 border-l-4 border-l-green-500">
-                                    <div className="flex items-center gap-4">
-                                        <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                                            <FontAwesomeIcon icon={faCheckCircle as any} className="text-2xl text-green-500" />
-                                        </div>
-                                        <div>
-                                            <p className="text-sm text-muted-foreground">إجمالي الإجابات</p>
-                                            <p className="text-3xl font-bold">{students.length * questions.length}</p>
-                                        </div>
-                                    </div>
-                                </div>
+                                <StatCard
+                                    icon={faUsers as any}
+                                    label="عدد الطلاب"
+                                    value={students.length}
+                                    color="blue"
+                                    delay={0}
+                                />
+                                <StatCard
+                                    icon={faQuestionCircle as any}
+                                    label="عدد الأسئلة"
+                                    value={questions.length}
+                                    color="purple"
+                                    delay={0.1}
+                                />
+                                <StatCard
+                                    icon={faCheckCircle as any}
+                                    label="إجمالي الإجابات"
+                                    value={students.length * questions.length}
+                                    color="green"
+                                    delay={0.2}
+                                />
                             </div>
 
                             {/* Questions List */}
-                            <div className="glass-card p-6 mb-8">
+                            <Card className="mb-8">
                                 <h2 className="text-xl font-bold mb-4">الأسئلة المتاحة</h2>
                                 <div className="space-y-3">
                                     {questions.map((q, idx) => (
@@ -144,10 +128,10 @@ export default function GradingDemo() {
                                         </div>
                                     ))}
                                 </div>
-                            </div>
+                            </Card>
 
                             {/* Students Preview */}
-                            <div className="glass-card p-6 mb-8">
+                            <Card className="mb-8">
                                 <h2 className="text-xl font-bold mb-4">الطلاب المسجلون</h2>
                                 <div className="grid grid-cols-2 gap-3">
                                     {students.map((student, idx) => (
@@ -164,7 +148,7 @@ export default function GradingDemo() {
                                         </div>
                                     ))}
                                 </div>
-                            </div>
+                            </Card>
 
                             {/* Start Grading Button */}
                             <div className="glass-card p-8 text-center">
@@ -195,3 +179,4 @@ export default function GradingDemo() {
         </div>
     );
 }
+

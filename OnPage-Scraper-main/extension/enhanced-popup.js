@@ -153,15 +153,17 @@ class EnhancedPopupController {
                     function: () => {
                         try {
                             const extractor = new window.SmartExtractor();
-                            return extractor.autoExtract({
+                            const raw = extractor.autoExtract({
                                 includeInputs: true,
                                 includeText: true,
                                 includeLinks: false,
                                 includeImages: false,
                                 useSemanticAnalysis: true
                             });
+                            // Ensure result is JSON-serializable for cross-context transfer
+                            return JSON.parse(JSON.stringify(raw));
                         } catch (e) {
-                            return { __error: e.message };
+                            return { __error: e.message, __stack: String(e.stack || '') };
                         }
                     }
                 }),

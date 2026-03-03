@@ -8,7 +8,7 @@ export default function ExtensionDataPage() {
   return (
     <div className="flex min-h-screen bg-background-dark">
       <Sidebar />
-      <main className="flex-1 pl-64 min-h-screen">
+      <main className="flex-1 pl-64 min-h-screen p-8 page-transition">
         <ExtensionDataView />
       </main>
     </div>

@@ -1,6 +1,6 @@
-"use client";
+﻿"use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import Sidebar from "@/components/Sidebar";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -17,12 +17,13 @@ import {
     faCode,
     faSave,
     faEye,
-    faUpload
+    faUpload,
+    faFilePdf
 } from "@fortawesome/free-solid-svg-icons";
 import Papa from "papaparse";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
-import { useRef } from "react";
+import { PageHeader, Card, StatCard, Button, Alert, Section, Badge } from "@/components/ui/UnifiedUI";
 
 export default function SmartGrader() {
     const [file, setFile] = useState<File | null>(null);
@@ -298,19 +299,47 @@ export default function SmartGrader() {
     };
 
     return (
-        <div className="flex min-h-screen bg-background text-foreground font-sans">
+        <div className="flex min-h-screen bg-background text-foreground">
             <Sidebar />
 
-            <main className="flex-1 ml-64 p-8 lg:p-12">
-                <header className="mb-12">
-                    <h1 className="text-4xl font-bold premium-text-gradient mb-2">Smart AI Grader</h1>
-                    <p className="text-muted-foreground">Automate student answer classification using AI. Supports CSV & JSON.</p>
-                </header>
+            <main className="flex-1 ml-64 p-8 lg:p-12 page-transition">
+                <PageHeader 
+                    icon={faChartPie as any}
+                    title="Smart AI Grader"
+                    subtitle="Automate student answer classification using AI. Supports CSV & JSON."
+                    gradient="primary"
+                />
+
+                {stats && (
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <StatCard 
+                            icon={faFileCsv as any}
+                            label="Total Students"
+                            value={stats.total}
+                            color="blue"
+                            delay={0}
+                        />
+                        <StatCard 
+                            icon={faCheckCircle as any}
+                            label="Success Rate"
+                            value={`${stats.successRate}%`}
+                            color="green"
+                            delay={0.1}
+                        />
+                        <StatCard 
+                            icon={faChartPie as any}
+                            label="Excellence Rate"
+                            value={`${stats.excellenceRate}%`}
+                            color="purple"
+                            delay={0.2}
+                        />
+                    </div>
+                )}
 
                 <div className="grid grid-cols-1 xl:grid-cols-2 gap-8">
                     {/* Input Section */}
                     <div className="space-y-6">
-                        <section className="glass-card p-8 rounded-3xl">
+                        <Card>
                             <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                                 <FontAwesomeIcon icon={faFileCsv as any} className="text-primary" />
                                 1. Data Quality Check
@@ -355,7 +384,7 @@ export default function SmartGrader() {
                                     </div>
 
                                     {showRawJson && (
-                                        <div className="p-4 bg-black/40 rounded-xl border border-white/10 max-h-[300px] overflow-auto animate-in fade-in slide-in-from-top-4 duration-300">
+                                        <div className="p-4 bg-black/40 rounded-xl border border-white/10 max-h-[300px] overflow-auto animate-fade-in">
                                             <pre className="text-[10px] font-mono text-blue-400">
                                                 {JSON.stringify(csvData, null, 2)}
                                             </pre>
@@ -389,23 +418,25 @@ export default function SmartGrader() {
                                     </ul>
                                 </div>
                             )}
-                        </section>
+                        </Card>
 
                         {file && (
-                            <section className="glass-card p-8 rounded-3xl animate-fade-in">
+                            <Card className="animate-fade-in">
                                 <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
                                     <FontAwesomeIcon icon={faGear as any} className="text-primary" />
                                     2. Configuration
                                 </h2>
 
                                 <div className="space-y-4">
-                                    <div className="p-4 bg-primary/5 border border-primary/20 rounded-xl">
-                                        <p className="text-sm text-primary font-medium mb-1 flex items-center gap-2">
+                                    <Alert variant="info">
+                                        <div className="flex items-center gap-2">
                                             <FontAwesomeIcon icon={faCheckCircle as any} />
-                                            Full Row Context Enabled
-                                        </p>
-                                        <p className="text-xs text-muted-foreground">The AI will analyze all available columns in your CSV to provide the most accurate assessment.</p>
-                                    </div>
+                                            <div>
+                                                <strong>Full Row Context Enabled</strong>
+                                                <p className="text-xs mt-1 opacity-90">The AI will analyze all available columns in your CSV to provide the most accurate assessment.</p>
+                                            </div>
+                                        </div>
+                                    </Alert>
 
                                     <div>
                                         <div className="flex items-center justify-between mb-2">
@@ -430,52 +461,49 @@ export default function SmartGrader() {
                                         />
                                     </div>
 
-                                    <button
+                                    <Button
                                         onClick={runAnalysis}
                                         disabled={isProcessing || !rules}
-                                        className="w-full premium-gradient p-4 rounded-xl font-bold flex items-center justify-center gap-2 hover:shadow-lg hover:shadow-blue-500/20 transition-all disabled:opacity-50"
+                                        variant="primary"
+                                        size="lg"
+                                        icon={(isProcessing ? faSpinner : faPlay) as any}
+                                        loading={isProcessing}
+                                        className="w-full"
                                     >
-                                        {isProcessing ? (
-                                            <><FontAwesomeIcon icon={faSpinner as any} spin /> Processing...</>
-                                        ) : (
-                                            <><FontAwesomeIcon icon={faPlay as any} /> Run AI Analysis</>
-                                        )}
-                                    </button>
+                                        {isProcessing ? "Processing..." : "Run AI Analysis"}
+                                    </Button>
                                 </div>
-                            </section>
+                            </Card>
                         )}
                     </div>
 
                     {/* Results Section */}
                     <div className="space-y-6">
-                        <section className="glass-card p-8 rounded-3xl h-full flex flex-col">
-                            <h2 className="text-xl font-bold mb-6 flex items-center justify-between">
-                                <span className="flex items-center gap-2">
+                        <Card className="h-full flex flex-col">
+                            <div className="flex items-center justify-between mb-6">
+                                <h2 className="text-xl font-bold flex items-center gap-2">
                                     <FontAwesomeIcon icon={faDownload as any} className="text-primary" />
                                     Analysis Results
-                                </span>
+                                </h2>
                                 {results.length > 0 && (
                                     <div className="flex gap-2">
-                                        <button onClick={generatePDF} className="text-xs bg-red-500/10 text-red-500 px-3 py-2 rounded-lg border border-red-500/20 hover:bg-red-500/20 transition-all flex items-center gap-2">
-                                            <FontAwesomeIcon icon={faFilePdf as any} />
+                                        <Button onClick={generatePDF} variant="ghost" size="sm" icon={faFilePdf as any} className="text-red-500 border-red-500/20 hover:bg-red-500/10">
                                             PDF
-                                        </button>
-                                        <button onClick={() => downloadResults('csv')} className="text-xs bg-primary/10 text-primary px-3 py-2 rounded-lg border border-primary/20 hover:bg-primary/20 flex items-center gap-2 transition-all">
-                                            <FontAwesomeIcon icon={faFileCsv as any} />
+                                        </Button>
+                                        <Button onClick={() => downloadResults('csv')} variant="ghost" size="sm" icon={faFileCsv as any} className="text-primary border-primary/20 hover:bg-primary/10">
                                             CSV
-                                        </button>
-                                        <button onClick={() => downloadResults('json')} className="text-xs bg-yellow-500/10 text-yellow-500 px-3 py-2 rounded-lg border border-yellow-500/20 hover:bg-yellow-500/20 flex items-center gap-2 transition-all">
-                                            <FontAwesomeIcon icon={faFileCode as any} />
+                                        </Button>
+                                        <Button onClick={() => downloadResults('json')} variant="ghost" size="sm" icon={faFileCode as any} className="text-yellow-500 border-yellow-500/20 hover:bg-yellow-500/10">
                                             JSON
-                                        </button>
+                                        </Button>
                                     </div>
                                 )}
-                            </h2>
+                            </div>
 
                             {isProcessing && (
                                 <div className="flex-1 flex flex-col items-center justify-center space-y-4 p-12">
                                     <div className="w-full h-2 bg-white/10 rounded-full overflow-hidden">
-                                        <div className="h-full bg-primary transition-all duration-300" style={{ width: `${progress}%` }} />
+                                        <div className="h-full bg-primary transition-all duration-300 animate-pulse" style={{ width: `${progress}%` }} />
                                     </div>
                                     <p className="text-sm font-medium">{progress}% Complete</p>
                                     <p className="text-xs text-muted-foreground">Evaluating student answers via Llama Pro...</p>
@@ -483,10 +511,9 @@ export default function SmartGrader() {
                             )}
 
                             {error && (
-                                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center gap-3 text-red-500 text-sm">
-                                    <FontAwesomeIcon icon={faExclamationTriangle as any} />
+                                <Alert variant="error" title="Processing Error">
                                     {error}
-                                </div>
+                                </Alert>
                             )}
 
                             {!isProcessing && !results.length && !error && (
@@ -522,22 +549,26 @@ export default function SmartGrader() {
                                                             {Object.entries(row)
                                                                 .filter(([k]) => k.startsWith("AI_") && !["AI_Final_Grade", "AI_Feedback", "AI_Category"].includes(k))
                                                                 .map(([k, v]) => (
-                                                                    <span key={k} className="bg-white/5 text-[10px] px-1.5 py-0.5 rounded border border-white/10">
+                                                                    <Badge key={k} variant="neutral" size="sm">
                                                                         {k.replace("AI_", "")}: {String(v)}
-                                                                    </span>
+                                                                    </Badge>
                                                                 ))}
                                                         </div>
                                                     </td>
                                                     <td className="py-4 px-2 font-bold text-primary">{row["AI_Final_Grade"]}</td>
                                                     <td className="py-4 px-2">
-                                                        <span className={`px-2 py-1 rounded-md text-[10px] font-bold border ${row["AI_Category"]?.toLowerCase().includes("excellent") || row["AI_Category"]?.toLowerCase().includes("good")
-                                                            ? "bg-green-500/10 text-green-500 border-green-500/20"
-                                                            : row["AI_Category"]?.toLowerCase().includes("needs") || row["AI_Category"]?.toLowerCase().includes("fail")
-                                                                ? "bg-red-500/10 text-red-500 border-red-500/20"
-                                                                : "bg-yellow-500/10 text-yellow-500 border-yellow-500/20"
-                                                            }`}>
+                                                        <Badge 
+                                                            variant={
+                                                                row["AI_Category"]?.toLowerCase().includes("excellent") || row["AI_Category"]?.toLowerCase().includes("good") 
+                                                                    ? "success" 
+                                                                    : row["AI_Category"]?.toLowerCase().includes("needs") || row["AI_Category"]?.toLowerCase().includes("fail")
+                                                                        ? "error"
+                                                                        : "warning"
+                                                            }
+                                                            size="sm"
+                                                        >
                                                             {row["AI_Category"]}
-                                                        </span>
+                                                        </Badge>
                                                     </td>
                                                 </tr>
                                             ))}
@@ -548,7 +579,7 @@ export default function SmartGrader() {
                                     )}
                                 </div>
                             )}
-                        </section>
+                        </Card>
                     </div>
                 </div>
             </main>
@@ -648,3 +679,5 @@ export default function SmartGrader() {
         </div>
     );
 }
+
+

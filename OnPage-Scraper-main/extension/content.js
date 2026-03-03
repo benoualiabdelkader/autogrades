@@ -499,30 +499,87 @@
         }
 
         generalizeSelectors(selectors) {
-            // Analyzes differences in CSS paths to generate a generalized multiple-element selector
             if (selectors.length < 2) return null;
-            const parts1 = selectors[0].split(' > ');
-            const parts2 = selectors[1].split(' > ');
 
-            // Must have the same DOM depth for grouping
-            if (parts1.length !== parts2.length) return null;
+            // Filter out xpath selectors; generalization only works with CSS
+            const cssSelectors = selectors.filter(s => !s.startsWith('xpath:'));
+            if (cssSelectors.length < 2) return null;
 
-            let generalized = [];
-            for (let i = 0; i < parts1.length; i++) {
-                if (parts1[i] === parts2[i]) {
-                    generalized.push(parts1[i]);
-                } else {
-                    // remove :nth-of-type() from both and see if they match structurally
-                    let p1Clean = parts1[i].replace(/:nth-of-type\(\d+\)/, '');
-                    let p2Clean = parts2[i].replace(/:nth-of-type\(\d+\)/, '');
-                    if (p1Clean === p2Clean) {
-                        generalized.push(p1Clean); // Extrapolate common ancestor!
-                    } else {
-                        return null; // Structural difference, cannot generalize properly.
+            // Try pairwise generalization across all pairs, pick the one that matches most elements
+            let bestGeneralized = null;
+            let bestCount = 0;
+
+            for (let a = 0; a < cssSelectors.length; a++) {
+                for (let b = a + 1; b < cssSelectors.length; b++) {
+                    const gen = this._generalizePair(cssSelectors[a], cssSelectors[b]);
+                    if (gen) {
+                        try {
+                            const count = document.querySelectorAll(gen).length;
+                            if (count > bestCount) {
+                                bestCount = count;
+                                bestGeneralized = gen;
+                            }
+                        } catch (_) {}
                     }
                 }
             }
-            return generalized.join(' > ');
+
+            return bestGeneralized;
+        }
+
+        _generalizePair(sel1, sel2) {
+            const parts1 = sel1.split(' > ');
+            const parts2 = sel2.split(' > ');
+
+            // Handle different depths: find common ancestor prefix
+            const minLen = Math.min(parts1.length, parts2.length);
+            let generalized = [];
+            let diffCount = 0;
+
+            for (let i = 0; i < minLen; i++) {
+                if (parts1[i] === parts2[i]) {
+                    generalized.push(parts1[i]);
+                } else {
+                    // Remove nth-of-type/nth-child and compare structurally
+                    let p1Clean = parts1[i].replace(/:nth-of-type\(\d+\)/g, '').replace(/:nth-child\(\d+\)/g, '');
+                    let p2Clean = parts2[i].replace(/:nth-of-type\(\d+\)/g, '').replace(/:nth-child\(\d+\)/g, '');
+                    if (p1Clean === p2Clean) {
+                        generalized.push(p1Clean);
+                        diffCount++;
+                    } else {
+                        // Try stripping classes and keeping just the tag
+                        let tag1 = parts1[i].match(/^[a-z][a-z0-9]*/)?.[0] || '';
+                        let tag2 = parts2[i].match(/^[a-z][a-z0-9]*/)?.[0] || '';
+                        if (tag1 === tag2 && tag1) {
+                            // Share common class if any
+                            const classes1 = new Set((parts1[i].match(/\.[a-zA-Z0-9_-]+/g) || []).map(c => c));
+                            const classes2 = new Set((parts2[i].match(/\.[a-zA-Z0-9_-]+/g) || []).map(c => c));
+                            const common = [...classes1].filter(c => classes2.has(c));
+                            generalized.push(tag1 + common.join(''));
+                            diffCount++;
+                        } else {
+                            return null; // Structural difference too large
+                        }
+                    }
+                }
+            }
+
+            // Allow at most 2 diff points
+            if (diffCount > 2) return null;
+
+            // If depths differ, trim to common
+            if (parts1.length !== parts2.length && generalized.length === minLen) {
+                // That's fine - we trimmed to the shorter common path
+            }
+
+            const result = generalized.join(' > ');
+            if (!result) return null;
+
+            // Validate: must match at least 2 elements
+            try {
+                if (document.querySelectorAll(result).length >= 2) return result;
+            } catch (_) {}
+            return null;
         }
 
         deselectElement(index) {
@@ -551,36 +608,71 @@
         generateSelector(element) {
             if (!element || element === document) return '';
 
-            if (element.id && !element.id.match(/^\d/)) {
-                return `#${element.id}`;
+            // Strategy 1: Unique ID
+            if (element.id && !element.id.match(/^\d/) && document.querySelectorAll(`#${CSS.escape(element.id)}`).length === 1) {
+                return `#${CSS.escape(element.id)}`;
             }
 
+            // Strategy 2: Unique data-* attribute
+            const stableAttrs = ['data-testid', 'data-cy', 'data-id', 'data-key', 'data-name',
+                                  'data-student-row', 'data-score', 'data-item', 'data-index',
+                                  'name', 'aria-label', 'role', 'itemprop', 'itemtype'];
+            for (const attr of stableAttrs) {
+                const val = element.getAttribute(attr);
+                if (val) {
+                    const sel = `${element.tagName.toLowerCase()}[${attr}="${CSS.escape(val)}"]`;
+                    try {
+                        if (document.querySelectorAll(sel).length === 1) return sel;
+                    } catch (_) {}
+                }
+            }
+
+            // Strategy 3: Build a robust path
             let path = [];
             let current = element;
 
             while (current && current !== document.body && current !== document.documentElement) {
                 let selector = current.tagName.toLowerCase();
+                let isUnique = false;
 
-                // Add unique identifiers instead of multiple brittle classes
-                if (current.dataset.testid) {
-                    selector += `[data-testid="${current.dataset.testid}"]`;
-                } else if (current.dataset.cy) {
-                    selector += `[data-cy="${current.dataset.cy}"]`;
-                } else {
+                // Check for unique ID at this level
+                if (current.id && !current.id.match(/^\d/)) {
+                    try {
+                        if (document.querySelectorAll(`#${CSS.escape(current.id)}`).length === 1) {
+                            path.unshift(`#${CSS.escape(current.id)}`);
+                            break; // No need to go higher
+                        }
+                    } catch (_) {}
+                }
+
+                // Check for stable data-* attributes
+                for (const attr of stableAttrs) {
+                    const val = current.getAttribute(attr);
+                    if (val) {
+                        selector += `[${attr}="${CSS.escape(val)}"]`;
+                        isUnique = true;
+                        break;
+                    }
+                }
+
+                // Add classes (filtered) if no stable attribute found
+                if (!isUnique) {
                     const classNameStr = this.getElementClassName(current);
                     if (classNameStr) {
                         const allClasses = classNameStr.split(/\s+/);
                         const cleanClasses = allClasses.filter(cls =>
-                            cls.length > 0 && !cls.startsWith('onpage-') && !cls.includes(':')
+                            cls.length > 0 &&
+                            !cls.startsWith('onpage-') &&
+                            !cls.includes(':') &&
+                            !cls.match(/^(active|hover|focus|selected|open|visible|hidden|disabled|enabled)$/)
                         );
                         if (cleanClasses.length > 0) {
-                            // Pick max two classes for stability
-                            selector += '.' + cleanClasses.slice(0, 2).join('.');
+                            selector += '.' + cleanClasses.slice(0, 3).join('.');
                         }
                     }
                 }
 
-                // Add nth-of-type for absolute precision
+                // Add nth-of-type for disambiguation
                 const parent = current.parentElement;
                 if (parent) {
                     const siblings = Array.from(parent.children).filter(child => child.tagName === current.tagName);
@@ -595,39 +687,95 @@
             }
 
             const finalSelector = path.join(' > ');
-            console.log('🎯 Generated robust final selector:', finalSelector);
+
+            // Validate: does this actually match the element?
+            try {
+                const matched = document.querySelector(finalSelector);
+                if (matched === element) {
+                    return finalSelector;
+                }
+            } catch (_) {}
+
+            // Strategy 4: XPath fallback for maximum precision
+            const xpath = this.generateXPath(element);
+            if (xpath) {
+                return `xpath:${xpath}`;
+            }
+
             return finalSelector;
         }
 
+        /**
+         * Generate an XPath expression for an element as ultimate fallback
+         */
+        generateXPath(element) {
+            if (!element || element === document) return '';
+            if (element.id) return `//*[@id="${element.id}"]`;
+
+            const parts = [];
+            let current = element;
+
+            while (current && current !== document.body && current.nodeType === Node.ELEMENT_NODE) {
+                let tag = current.tagName.toLowerCase();
+                const parent = current.parentElement;
+                if (parent) {
+                    const siblings = Array.from(parent.children).filter(c => c.tagName === current.tagName);
+                    if (siblings.length > 1) {
+                        const idx = siblings.indexOf(current) + 1;
+                        tag += `[${idx}]`;
+                    }
+                }
+                parts.unshift(tag);
+                current = current.parentElement;
+            }
+            parts.unshift('/body');
+            return '/' + parts.join('/');
+        }
+
         generateElementName(element) {
-            // Try to get meaningful name from various attributes
-            // Keep original field names without formatting (no spaces, no uppercase)
+            // Priority 1: Explicit identifiers
+            if (element.id) return element.id;
+            if (element.dataset.testid) return element.dataset.testid;
+            if (element.getAttribute('name')) return element.getAttribute('name');
+            if (element.getAttribute('aria-label')) return element.getAttribute('aria-label').replace(/\s+/g, '_').toLowerCase();
+            if (element.getAttribute('itemprop')) return element.getAttribute('itemprop');
+
+            // Priority 2: Associated label
             if (element.id) {
-                return element.id; // Keep original: field_domain
+                const label = document.querySelector(`label[for="${element.id}"]`);
+                if (label) return label.textContent.trim().replace(/\s+/g, '_').toLowerCase();
+            }
+            const parentLabel = element.closest('label');
+            if (parentLabel) {
+                const labelText = parentLabel.textContent?.trim();
+                if (labelText && labelText.length < 50) return labelText.replace(/\s+/g, '_').toLowerCase();
             }
 
-            if (element.dataset.testid) {
-                return element.dataset.testid; // Keep original: field_domain
-            }
-
-            // Safely get className as string using utility function
+            // Priority 3: Relevant class names
             const classNameStr = this.getElementClassName(element);
             if (classNameStr) {
                 const classes = classNameStr.split(/\s+/);
-                // Filter out onpage- classes and find the most relevant class
-                const relevantClasses = classes.filter(cls => !cls.startsWith('onpage-'));
-                if (relevantClasses.length > 0) {
-                    return relevantClasses[0]; // Keep original: field_domain
-                }
+                const relevantClasses = classes.filter(cls =>
+                    !cls.startsWith('onpage-') &&
+                    !['active','hover','focus','selected','open','visible','hidden','disabled'].includes(cls)
+                );
+                if (relevantClasses.length > 0) return relevantClasses[0];
             }
 
-            // Use tag name with text content if available
+            // Priority 4: Heading/label sibling context
+            const prevSibling = element.previousElementSibling;
+            if (prevSibling && /^(h[1-6]|label|legend|dt|th)$/i.test(prevSibling.tagName)) {
+                const sibText = prevSibling.textContent?.trim();
+                if (sibText && sibText.length < 60) return sibText.replace(/\s+/g, '_').toLowerCase();
+            }
+
+            // Priority 5: Text snippet
             const text = element.textContent?.trim();
             if (text && text.length > 0 && text.length < 50) {
-                return `${element.tagName.toLowerCase()}_${text.replace(/\s+/g, '_').toLowerCase()}`;
+                return `${element.tagName.toLowerCase()}_${text.replace(/[^a-zA-Z0-9\u0600-\u06FF]/g, '_').replace(/_+/g, '_').toLowerCase()}`;
             }
 
-            // Fallback to tag name
+            // Fallback
             return element.tagName.toLowerCase();
         }
 

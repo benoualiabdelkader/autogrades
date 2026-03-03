@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React from 'react';
 import Link from 'next/link';
@@ -32,42 +32,42 @@ const Sidebar = () => {
                 <nav className="space-y-2">
                     <SidebarItem
                         href="/dashboard"
-                        icon={faHouse}
+                        icon={faHouse as any}
                         label="Dashboard"
                     />
                     <SidebarItem
                         href="/assignment-generator/home"
-                        icon={faKeyboard}
+                        icon={faKeyboard as any}
                         label="Assignments"
                     />
                     <SidebarItem
                         href="/rubric-generator/home"
-                        icon={faFileSignature}
+                        icon={faFileSignature as any}
                         label="Rubrics"
                     />
                     <SidebarItem
                         href="/smart-grader"
-                        icon={faFileCsv}
+                        icon={faFileCsv as any}
                         label="Smart Grader"
                     />
                     <SidebarItem
                         href="/json-tool"
-                        icon={faCode}
+                        icon={faCode as any}
                         label="JSON Processor"
                     />
                     <SidebarItem
                         href="/ai-assistant"
-                        icon={faRobot}
+                        icon={faRobot as any}
                         label="AI Assistant"
                     />
                     <SidebarItem
                         href="/json-analyzer"
-                        icon={faChartLine}
+                        icon={faChartLine as any}
                         label="Analytics"
                     />
                     <SidebarItem
                         href="/extension-data"
-                        icon={faPuzzlePiece}
+                        icon={faPuzzlePiece as any}
                         label="Extension Data"
                     />
                 </nav>
@@ -76,12 +76,12 @@ const Sidebar = () => {
             <div className="mt-auto p-6 space-y-2">
                 <SidebarItem
                     href="/database-settings"
-                    icon={faDatabase}
+                    icon={faDatabase as any}
                     label="Database"
                 />
                 <SidebarItem
                     href="#"
-                    icon={faGear}
+                    icon={faGear as any}
                     label="Settings"
                 />
                 <div className="p-4 rounded-xl bg-primary/5 border border-primary/20 mt-4">
@@ -119,3 +119,4 @@ const SidebarItem = ({ href, icon, label }: { href: string; icon: any; label: st
 };
 
 export default Sidebar;
+

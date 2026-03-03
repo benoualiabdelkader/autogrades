@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import React, { useState } from 'react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -77,7 +77,7 @@ export default function DatabaseSettings() {
           {/* Header */}
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-100 flex items-center gap-3">
-              <FontAwesomeIcon icon={faDatabase} className="text-primary" />
+              <FontAwesomeIcon icon={faDatabase as any} className="text-primary" />
               Database Configuration
             </h1>
             <p className="text-slate-400 mt-2">
@@ -94,7 +94,7 @@ export default function DatabaseSettings() {
             }`}>
               <div className="flex items-center gap-3">
                 <FontAwesomeIcon 
-                  icon={connectionStatus === 'success' ? faCheck : faXmark} 
+                  icon={(connectionStatus === 'success' ? faCheck : faXmark) as any} 
                   className={connectionStatus === 'success' ? 'text-primary' : 'text-red-400'}
                 />
                 <p className={connectionStatus === 'success' ? 'text-primary' : 'text-red-400'}>
@@ -213,12 +213,12 @@ export default function DatabaseSettings() {
                 >
                   {testing ? (
                     <>
-                      <FontAwesomeIcon icon={faSpinner} className="animate-spin" />
+                      <FontAwesomeIcon icon={faSpinner as any} className="animate-spin" />
                       Testing Connection...
                     </>
                   ) : (
                     <>
-                      <FontAwesomeIcon icon={faDatabase} />
+                      <FontAwesomeIcon icon={faDatabase as any} />
                       Test Connection
                     </>
                   )}
@@ -270,3 +270,5 @@ export default function DatabaseSettings() {
     </div>
   );
 }
+
+
