@@ -486,7 +486,7 @@ export default function ExtensionDataView() {
             {/* Right: Actions */}
             <div className="flex items-center gap-2 flex-shrink-0">
               <button
-                onClick={fetchData}
+                onClick={() => fetchData()}
                 disabled={loading}
                 className="group inline-flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white/5 border border-white/10 text-slate-300 hover:bg-white/10 hover:border-white/20 hover:text-white transition-all duration-300 text-sm font-medium disabled:opacity-50"
               >
@@ -570,7 +570,7 @@ export default function ExtensionDataView() {
             <p className="text-sm text-red-300/70 mt-1">{error}</p>
           </div>
           <button
-            onClick={fetchData}
+            onClick={() => fetchData()}
             className="mr-auto px-4 py-2 rounded-xl bg-red-500/20 text-red-400 border border-red-500/30 hover:bg-red-500/30 transition-all text-sm font-medium"
           >
             إعادة المحاولة

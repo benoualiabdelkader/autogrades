@@ -11,11 +11,15 @@
 
 class AutoGraderIntegration {
     constructor() {
-        this.autoGraderURL = 'http://localhost:5173';
+        this.autoGraderURL = 'http://localhost:3000';
         this.apiEndpoint = '/api/scraper-data';
         this.isConnected = false;
         this._requestTimeout = 10000; // 10 s per request
         this._version = '2.1.0';
+        // Privacy guard instance — protects PII before sending
+        this._privacyGuard = typeof ExtensionPrivacyGuard !== 'undefined'
+            ? new ExtensionPrivacyGuard({ enabled: true })
+            : null;
     }
 
     /** Allow callers to adjust the per-request timeout at runtime. */
@@ -68,7 +72,16 @@ class AutoGraderIntegration {
         }
 
         try {
-            const formattedData = this.formatForAutoGrader(extractedData);
+            let formattedData = this.formatForAutoGrader(extractedData);
+
+            // ─── Privacy Protection: Strip PII before sending ──────
+            if (this._privacyGuard) {
+                const { sanitized, summary } = this._privacyGuard.protectObject(formattedData);
+                formattedData = sanitized;
+                formattedData._privacyProtected = true;
+                formattedData._privacySummary = summary;
+                console.log('[AutoGrader] PII protected before send:', summary);
+            }
 
             const response = await this._fetch(`${this.autoGraderURL}${this.apiEndpoint}`, {
                 method: 'POST',

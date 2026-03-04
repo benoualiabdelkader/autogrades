@@ -55,7 +55,7 @@ body {
     max-height: 640px;
     overflow-y: auto;
     overflow-x: hidden;
-    direction: rtl;
+    direction: ltr;
     scrollbar-width: thin;
     scrollbar-color: var(--border) transparent;
 }
@@ -964,3 +964,147 @@ select.input {
     clip: rect(0,0,0,0);
     border: 0;
 }
+
+/* ═══════════════════════════════════════════════════════
+   NEW v3.0 COMPONENTS
+   ═══════════════════════════════════════════════════════ */
+
+/* ── Platform Detection Bar ─────────────────────────── */
+.platform-bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 16px;
+    background: var(--bg-elevated);
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+}
+
+.platform-icon {
+    font-size: 16px;
+}
+
+.platform-name {
+    font-weight: 600;
+    color: var(--text-primary);
+}
+
+.platform-type-badge {
+    margin-left: auto;
+    padding: 2px 8px;
+    border-radius: var(--radius-sm);
+    background: var(--primary-glow);
+    color: var(--primary);
+    font-size: 11px;
+    font-weight: 500;
+    text-transform: capitalize;
+}
+
+.platform-type-badge.badge-moodle { background: rgba(245, 158, 11, 0.15); color: #f59e0b; }
+.platform-type-badge.badge-canvas { background: rgba(239, 68, 68, 0.15); color: #ef4444; }
+.platform-type-badge.badge-wordpress { background: rgba(99, 102, 241, 0.15); color: #6366f1; }
+.platform-type-badge.badge-shopify { background: rgba(16, 185, 129, 0.15); color: #10b981; }
+
+/* ── Login Alert ────────────────────────────────────── */
+.login-alert {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin-top: 12px;
+    padding: 10px 14px;
+    border-radius: var(--radius-md);
+    background: rgba(251, 191, 36, 0.1);
+    border: 1px solid rgba(251, 191, 36, 0.25);
+    color: var(--warning);
+}
+
+.login-alert svg { flex-shrink: 0; margin-top: 2px; }
+
+.login-alert-content {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.login-alert-content strong {
+    font-size: 12.5px;
+    font-weight: 600;
+}
+
+.login-alert-content p {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    line-height: 1.4;
+}
+
+/* ── Multi-Page Progress ────────────────────────────── */
+.multi-progress {
+    margin-top: 14px;
+    padding: 12px;
+    border-radius: var(--radius-md);
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+}
+
+.multi-progress-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 12px;
+    margin-bottom: 8px;
+}
+
+.multi-progress-header span:first-child {
+    font-weight: 500;
+    color: var(--text-primary);
+}
+
+.multi-progress-header span:last-child {
+    color: var(--text-secondary);
+}
+
+/* ── Crawl Log ──────────────────────────────────────── */
+.crawl-log {
+    margin-top: 10px;
+    max-height: 120px;
+    overflow-y: auto;
+    padding: 8px;
+    border-radius: var(--radius-sm);
+    background: var(--bg-base);
+    border: 1px solid var(--border);
+    font-family: 'Fira Code', 'Consolas', monospace;
+    font-size: 10.5px;
+    color: var(--text-secondary);
+    scrollbar-width: thin;
+}
+
+.crawl-log-entry {
+    padding: 2px 0;
+    border-bottom: 1px solid rgba(255,255,255,0.03);
+}
+
+.crawl-log-entry:last-child { border-bottom: none; }
+
+/* ── Form Hint ──────────────────────────────────────── */
+.form-hint {
+    display: block;
+    margin-top: 4px;
+    font-size: 11px;
+    color: var(--text-muted);
+}
+
+/* ── Danger Button ──────────────────────────────────── */
+.btn-danger {
+    background: var(--danger);
+    color: white;
+    border: none;
+    cursor: pointer;
+    border-radius: var(--radius-sm);
+    padding: 6px 14px;
+    font-size: 12px;
+    font-weight: 500;
+    transition: background var(--transition);
+}
+
+.btn-danger:hover { background: #dc2626; }
+

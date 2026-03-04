@@ -1,15 +1,16 @@
 {
   "manifest_version": 3,
-  "name": "AutoGrader Smart Scraper",
-  "version": "2.1.0",
-  "description": "استخراج ذكي للبيانات مع التحليل الدلالي ومحرك المرونة | Smart web data extraction powered by semantic analysis and resilience engine",
+  "name": "AutoGrader Universal Scraper",
+  "version": "3.0.0",
+  "description": "Intelligent universal data extraction with platform auto-detection, stealth browsing, multi-page crawling, and semantic analysis",
   "permissions": [
     "activeTab",
     "storage",
     "scripting",
     "tabs",
     "cookies",
-    "webRequest"
+    "webRequest",
+    "alarms"
   ],
   "host_permissions": [
     "http://localhost:3000/*",
@@ -18,7 +19,7 @@
     "<all_urls>"
   ],
   "background": {
-    "service_worker": "background.js"
+    "service_worker": "background-main.js"
   },
   "content_scripts": [
     {
@@ -33,12 +34,18 @@
         "anti-detection.js",
         "performance-manager.js",
         "enhanced-integration.js",
-        "resilience-engine.js",
-        "telemetry-profiler.js",
-        "semantic-analyzer.js",
-        "smart-extractor.js",
         "autograder-integration.js",
-        "content.js"
+        "content.js",
+        "content/privacy-guard.js",
+        "content/strategies/dashboard.js",
+        "content/strategies/course.js",
+        "content/strategies/assignment.js",
+        "content/strategies/grades.js",
+        "content/parser/normalizer.js",
+        "content/parser/validators.js",
+        "content/router.js",
+        "content/moodle-auto-scraper.js",
+        "content/moodle-content-main.js"
       ],
       "css": [
         "content.css"
@@ -48,7 +55,7 @@
   ],
   "action": {
     "default_popup": "enhanced-popup.html",
-    "default_title": "AutoGrader Smart Scraper",
+    "default_title": "AutoGrader Universal Scraper",
     "default_icon": {
       "16": "icons/OnPage.png",
       "32": "icons/OnPage.png",
@@ -66,7 +73,10 @@
   "web_accessible_resources": [
     {
       "resources": [
-        "content.css"
+        "content.css",
+        "core/SiteDetector.js",
+        "core/StealthEngine.js",
+        "core/UniversalScraper.js"
       ],
       "matches": [
         "<all_urls>"

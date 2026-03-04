@@ -1,7 +1,13 @@
 /**
- * Enhanced Popup Controller v2.1
- * Improved with: tab navigation, toast system, history, CSV export,
- * robust error handling, settings persistence, and retry logic.
+ * Enhanced Popup Controller v3.0
+ * Complete English rewrite with:
+ *   - Universal scraping (any website/platform)
+ *   - Platform auto-detection via SiteDetector
+ *   - Multi-page crawling with progress tracking
+ *   - Stealth mode integration
+ *   - Login detection alerts
+ *   - Tab navigation, toast system, history, exports
+ *   - Robust error handling, settings persistence, retry logic
  */
 
 class EnhancedPopupController {
@@ -10,12 +16,17 @@ class EnhancedPopupController {
         this.selectedElements = [];
         this.extractedData = null;
         this.isExtracting = false;
+        this.isCrawling = false;
         this.extractionHistory = [];
+        this.siteInfo = null;
         this.settings = {
             maxRetries: 3,
             extractionTimeout: 30,
             autoSave: true,
-            notifications: true
+            notifications: true,
+            stealthMode: true,
+            canvasNoise: true,
+            sessionPersist: true,
         };
 
         this.init();
@@ -31,6 +42,111 @@ class EnhancedPopupController {
         await this.loadHistory();
         await this.checkConnection();
         this.updateFooterCount();
+        await this.detectPlatform();
+        await this.checkLoginStatus();
+    }
+
+    // ─── Platform Detection ────────────────────────────────────────
+
+    async detectPlatform() {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab) return;
+
+            // Inject SiteDetector and run detection
+            try {
+                await chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    files: ['core/SiteDetector.js']
+                });
+            } catch (_) { /* already present */ }
+
+            const result = await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                function: () => {
+                    try {
+                        const d = new SiteDetector();
+                        return JSON.parse(JSON.stringify(d.detect()));
+                    } catch (e) {
+                        return { platform: 'unknown', pageType: 'generic', confidence: 0, features: {} };
+                    }
+                }
+            });
+
+            if (result?.[0]?.result) {
+                this.siteInfo = result[0].result;
+                this.updatePlatformBar(this.siteInfo);
+            }
+        } catch (err) {
+            console.warn('Platform detection failed:', err);
+        }
+    }
+
+    updatePlatformBar(info) {
+        const icons = {
+            'moodle': '🎓', 'canvas': '🎨', 'blackboard': '📋',
+            'google-classroom': '📚', 'schoology': '🏫', 'wordpress': '📝',
+            'shopify': '🛒', 'generic': '🌐', 'unknown': '🌐'
+        };
+
+        const iconEl = document.getElementById('platformIcon');
+        const nameEl = document.getElementById('platformName');
+        const typeEl = document.getElementById('platformType');
+
+        if (iconEl) iconEl.textContent = icons[info.platform] || '🌐';
+        if (nameEl) {
+            const name = info.platform === 'unknown' ? info.domain : info.platform.charAt(0).toUpperCase() + info.platform.slice(1);
+            nameEl.textContent = name;
+        }
+        if (typeEl) {
+            typeEl.textContent = info.pageType.replace(/-/g, ' ');
+            typeEl.className = 'platform-type-badge badge-' + info.platform;
+        }
+    }
+
+    // ─── Login Detection ───────────────────────────────────────────
+
+    async checkLoginStatus() {
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab) return;
+
+            try {
+                await chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    files: ['core/StealthEngine.js']
+                });
+            } catch (_) {}
+
+            const result = await chrome.scripting.executeScript({
+                target: { tabId: tab.id },
+                function: () => {
+                    try {
+                        const se = new StealthEngine();
+                        const loginForm = se.detectLoginForm();
+                        const loggedIn = se.isLoggedIn();
+                        return { hasLoginForm: !!loginForm, isLoggedIn: loggedIn, formFields: loginForm };
+                    } catch (e) {
+                        return { hasLoginForm: false, isLoggedIn: true };
+                    }
+                }
+            });
+
+            const status = result?.[0]?.result;
+            const alert = document.getElementById('loginAlert');
+
+            if (status?.hasLoginForm && !status?.isLoggedIn && alert) {
+                alert.style.display = 'flex';
+                const title = document.getElementById('loginAlertTitle');
+                const desc = document.getElementById('loginAlertDesc');
+                if (title) title.textContent = 'Login Required';
+                if (desc) desc.textContent = 'A login form was detected. Sign in first for full data access.';
+            } else if (alert) {
+                alert.style.display = 'none';
+            }
+        } catch (err) {
+            console.warn('Login check failed:', err);
+        }
     }
 
     // ─── Tab Navigation ────────────────────────────────────────────
@@ -39,7 +155,8 @@ class EnhancedPopupController {
         const tabs = document.querySelectorAll('.tab-btn');
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
-                const panelId = 'panel' + tab.dataset.tab.charAt(0).toUpperCase() + tab.dataset.tab.slice(1);
+                const tabName = tab.dataset.tab;
+                const panelId = 'panel' + tabName.charAt(0).toUpperCase() + tabName.slice(1);
 
                 // Deactivate all
                 tabs.forEach(t => t.classList.remove('active'));
@@ -56,6 +173,7 @@ class EnhancedPopupController {
     // ─── Event Listeners ───────────────────────────────────────────
 
     setupEventListeners() {
+        // Extract tab
         this._on('selectElementsBtn', 'click', () => this.handleManualSelection());
         this._on('autoSelectBtn', 'click', () => this.handleAutoExtraction());
         this._on('clearElementsBtn', 'click', () => this.clearElements());
@@ -63,9 +181,15 @@ class EnhancedPopupController {
         this._on('previewBtn', 'click', () => this.showPreview());
         this._on('exportJsonBtn', 'click', () => this.exportJSON());
         this._on('exportCsvBtn', 'click', () => this.exportCSV());
+
+        // Multi-page tab
+        this._on('startCrawlBtn', 'click', () => this.startMultiPageCrawl());
+        this._on('stopCrawlBtn', 'click', () => this.stopMultiPageCrawl());
+        this._on('crawlMode', 'change', () => this.onCrawlModeChange());
+
+        // Settings tab
         this._on('testConnectionBtn', 'click', () => this.testConnection());
         this._on('clearHistoryBtn', 'click', () => this.clearHistory());
-
         this._on('autoGraderUrl', 'change', (e) => this.saveAutoGraderUrl(e.target.value));
 
         // Advanced settings
@@ -73,6 +197,9 @@ class EnhancedPopupController {
         this._on('extractionTimeout', 'change', () => this.saveAdvancedSettings());
         this._on('autoSaveOption', 'change', () => this.saveAdvancedSettings());
         this._on('notificationsOption', 'change', () => this.saveAdvancedSettings());
+        this._on('globalStealthOption', 'change', () => this.saveAdvancedSettings());
+        this._on('canvasNoiseOption', 'change', () => this.saveAdvancedSettings());
+        this._on('sessionPersistOption', 'change', () => this.saveAdvancedSettings());
 
         // Modal controls
         this._on('closePreviewBtn', 'click', () => this.closePreview());
@@ -101,11 +228,10 @@ class EnhancedPopupController {
     async handleManualSelection() {
         try {
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
-            if (!tab) { this.showToast('لم يتم العثور على تبويب نشط', 'error'); return; }
+            if (!tab) { this.showToast('No active tab found', 'error'); return; }
 
             await chrome.storage.local.set({ 'onpage_selection_mode': true });
 
-            // content.js is already injected via manifest, but re-inject to ensure readiness
             try {
                 await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: ['content.js'] });
             } catch (_) { /* already injected */ }
@@ -115,11 +241,11 @@ class EnhancedPopupController {
 
         } catch (error) {
             console.error('Manual selection error:', error);
-            this.showToast('فشل بدء التحديد اليدوي: ' + error.message, 'error');
+            this.showToast('Failed to start manual selection: ' + error.message, 'error');
         }
     }
 
-    // ─── Auto Extraction ──────────────────────────────────────────
+    // ─── Smart Auto Extraction ────────────────────────────────────
 
     async handleAutoExtraction() {
         if (this.isExtracting) return;
@@ -129,30 +255,45 @@ class EnhancedPopupController {
         if (autoBtn) { autoBtn.disabled = true; }
 
         try {
-            this.showProgress('جاري التحليل الدلالي والهيكلي...', 15);
+            this.showProgress('Running semantic & structural analysis...', 15);
 
             const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
             if (!tab) {
-                this.showToast('لم يتم العثور على تبويب نشط', 'error');
+                this.showToast('No active tab found', 'error');
                 return;
             }
 
-            // Inject content scripts (best-effort; they may already be present via manifest)
+            // Inject all engines
+            const scripts = [
+                'core/SiteDetector.js', 'core/StealthEngine.js', 'core/UniversalScraper.js',
+                'resilience-engine.js', 'telemetry-profiler.js', 'semantic-analyzer.js', 'smart-extractor.js'
+            ];
             try {
-                await chrome.scripting.executeScript({
-                    target: { tabId: tab.id },
-                    files: ['resilience-engine.js', 'telemetry-profiler.js', 'semantic-analyzer.js', 'smart-extractor.js']
-                });
+                await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: scripts });
             } catch (_) { /* already present */ }
 
-            this.showProgress('جاري تحليل بنية الصفحة...', 40);
+            this.showProgress('Analyzing page structure...', 40);
+
+            // Get extraction options from UI
+            const options = this._getExtractionOptions();
 
             const result = await this._withTimeout(
                 chrome.scripting.executeScript({
                     target: { tabId: tab.id },
-                    function: () => {
+                    function: (opts) => {
                         try {
-                            const extractor = new window.SmartExtractor();
+                            // Try UniversalScraper first (new engine)
+                            if (typeof UniversalScraper !== 'undefined') {
+                                const scraper = new UniversalScraper({
+                                    cleanData: opts.cleanData,
+                                    removeDuplicates: opts.removeDuplicates,
+                                    includeMetadata: opts.includeMetadata,
+                                });
+                                const data = scraper.scrapeCurrentPage();
+                                return JSON.parse(JSON.stringify(data));
+                            }
+                            // Fallback to SmartExtractor
+                            const extractor = new SmartExtractor();
                             const raw = extractor.autoExtract({
                                 includeInputs: true,
                                 includeText: true,
@@ -160,17 +301,17 @@ class EnhancedPopupController {
                                 includeImages: false,
                                 useSemanticAnalysis: true
                             });
-                            // Ensure result is JSON-serializable for cross-context transfer
                             return JSON.parse(JSON.stringify(raw));
                         } catch (e) {
                             return { __error: e.message, __stack: String(e.stack || '') };
                         }
-                    }
+                    },
+                    args: [options]
                 }),
                 this.settings.extractionTimeout * 1000
             );
 
-            this.showProgress('جاري معالجة البيانات...', 75);
+            this.showProgress('Processing data...', 75);
 
             if (result?.[0]?.result?.__error) {
                 throw new Error(result[0].result.__error);
@@ -178,15 +319,35 @@ class EnhancedPopupController {
 
             if (result?.[0]?.result) {
                 this.extractedData = result[0].result;
-                this.showProgress('تم الاستخراج بنجاح!', 100);
+
+                // Build summary from UniversalScraper format if missing
+                if (!this.extractedData.summary) {
+                    const d = this.extractedData;
+                    const tableRows = (d.tables || []).reduce((a, t) => a + (t.rows?.length || 0), 0);
+                    this.extractedData.summary = {
+                        totalFields: tableRows + (d.textBlocks || []).length,
+                        totalEntities: (d.lists || []).reduce((a, l) => a + (l.items?.length || 0), 0) + (d.cards || []).length,
+                        totalForms: (d.forms || []).length,
+                        totalTables: (d.tables || []).length,
+                        tables: (d.tables || []).length,
+                        lists: (d.lists || []).length,
+                        forms: (d.forms || []).length,
+                        links: (d.links || []).length,
+                    };
+                }
+
+                this.showProgress('Extraction complete!', 100);
 
                 setTimeout(() => {
                     this.hideProgress();
                     const s = this.extractedData.summary || {};
                     this.updateExtractionStats(s);
                     this.enableActionButtons();
+
+                    const fieldCount = s.totalFields || s.totalTables || 0;
+                    const entityCount = s.totalEntities || s.lists || 0;
                     this.showToast(
-                        `تم الاستخراج الذكي! ${s.totalFields || 0} حقل، ${s.totalEntities || 0} كيان`,
+                        `Smart extraction complete! ${fieldCount} fields, ${entityCount} entities`,
                         'success'
                     );
 
@@ -203,24 +364,34 @@ class EnhancedPopupController {
                 }, 800);
             } else {
                 this.hideProgress();
-                this.showToast('لم يتم العثور على بيانات في الصفحة', 'error');
+                this.showToast('No data found on this page', 'error');
             }
 
         } catch (error) {
             console.error('Auto extraction error:', error);
             this.hideProgress();
-            this.showToast('فشل الاستخراج: ' + error.message, 'error');
+            this.showToast('Extraction failed: ' + error.message, 'error');
         } finally {
             this.isExtracting = false;
             if (autoBtn) autoBtn.disabled = false;
         }
     }
 
+    /** Read current extraction options from checkboxes */
+    _getExtractionOptions() {
+        return {
+            cleanData: document.getElementById('cleanDataOption')?.checked ?? true,
+            removeDuplicates: document.getElementById('removeDuplicatesOption')?.checked ?? true,
+            validateData: document.getElementById('validateDataOption')?.checked ?? true,
+            includeMetadata: document.getElementById('includeMetadataOption')?.checked ?? false,
+        };
+    }
+
     // ─── Extract & Send ───────────────────────────────────────────
 
     async handleExtractAndSend() {
         if (this.isExtracting) {
-            this.showToast('عملية استخراج جارية بالفعل', 'info');
+            this.showToast('An extraction is already in progress', 'info');
             return;
         }
 
@@ -229,27 +400,26 @@ class EnhancedPopupController {
         if (btn) { btn.disabled = true; }
 
         try {
-            // Extract from selected elements if we don't have data yet
             if (!this.extractedData && this.selectedElements.length > 0) {
-                this.showProgress('جاري استخراج البيانات...', 20);
+                this.showProgress('Extracting data from selected elements...', 20);
                 await this.extractFromSelectedElements();
             }
 
             if (!this.extractedData) {
-                this.showToast('لا توجد بيانات للإرسال. قم بالاستخراج أولاً.', 'error');
+                this.showToast('No data to send. Run an extraction first.', 'error');
                 return;
             }
 
-            this.showProgress('جاري الإرسال إلى AutoGrader...', 55);
+            this.showProgress('Sending to AutoGrader...', 55);
 
             const result = await this.sendWithRetry(this.extractedData);
 
-            this.showProgress('تم!', 100);
+            this.showProgress('Done!', 100);
 
             setTimeout(() => {
                 this.hideProgress();
                 if (result.success) {
-                    this.showToast('تم إرسال البيانات بنجاح إلى AutoGrader Dashboard ✓', 'success');
+                    this.showToast('Data sent successfully to AutoGrader Dashboard', 'success');
                     this.addHistoryEntry({
                         url: this.extractedData.url,
                         title: this.extractedData.title,
@@ -257,7 +427,7 @@ class EnhancedPopupController {
                         status: 'sent'
                     });
                 } else {
-                    this.showToast('فشل الإرسال: ' + result.message, 'error');
+                    this.showToast('Send failed: ' + result.message, 'error');
                     this.addHistoryEntry({
                         url: this.extractedData?.url,
                         title: this.extractedData?.title,
@@ -270,7 +440,7 @@ class EnhancedPopupController {
         } catch (error) {
             console.error('Extract & send error:', error);
             this.hideProgress();
-            this.showToast('خطأ غير متوقع: ' + error.message, 'error');
+            this.showToast('Unexpected error: ' + error.message, 'error');
         } finally {
             this.isExtracting = false;
             this.enableActionButtons();
@@ -282,7 +452,7 @@ class EnhancedPopupController {
         const result = await this.autoGraderIntegration.sendToAutoGrader(data);
         if (!result.success && attempt < this.settings.maxRetries) {
             await this._sleep(1000 * attempt);
-            this.showProgress(`جاري إعادة الإرسال (محاولة ${attempt + 1})...`, 55 + attempt * 10);
+            this.showProgress(`Retrying (attempt ${attempt + 1})...`, 55 + attempt * 10);
             return this.sendWithRetry(data, attempt + 1);
         }
         return result;
@@ -311,11 +481,173 @@ class EnhancedPopupController {
         if (result?.[0]?.result) this.extractedData = result[0].result;
     }
 
+    // ─── Multi-Page Crawling ──────────────────────────────────────
+
+    onCrawlModeChange() {
+        const mode = document.getElementById('crawlMode')?.value;
+        const patternGroup = document.getElementById('linkPatternGroup');
+        if (patternGroup) {
+            patternGroup.style.display = (mode === 'links') ? 'block' : 'none';
+        }
+    }
+
+    async startMultiPageCrawl() {
+        if (this.isCrawling) return;
+        this.isCrawling = true;
+
+        const startBtn = document.getElementById('startCrawlBtn');
+        const stopBtn = document.getElementById('stopCrawlBtn');
+        if (startBtn) startBtn.style.display = 'none';
+        if (stopBtn) stopBtn.style.display = 'inline-flex';
+
+        const multiProgress = document.getElementById('multiProgress');
+        if (multiProgress) multiProgress.style.display = 'block';
+
+        const crawlMode = document.getElementById('crawlMode')?.value || 'pagination';
+        const maxPages = parseInt(document.getElementById('maxPages')?.value || '10');
+        const requestDelay = parseInt(document.getElementById('requestDelay')?.value || '1500');
+        const linkPattern = document.getElementById('linkPattern')?.value || '';
+        const stealth = document.getElementById('stealthModeOption')?.checked ?? true;
+        const humanSim = document.getElementById('humanSimOption')?.checked ?? true;
+
+        this.updateCrawlProgress('Starting multi-page scrape...', 0, maxPages);
+        this.addCrawlLog('Initializing crawl engine...');
+
+        try {
+            const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+            if (!tab) { this.showToast('No active tab found', 'error'); return; }
+
+            // Inject all engines
+            const scripts = [
+                'core/SiteDetector.js', 'core/StealthEngine.js', 'core/UniversalScraper.js',
+                'resilience-engine.js', 'semantic-analyzer.js', 'smart-extractor.js'
+            ];
+            try {
+                await chrome.scripting.executeScript({ target: { tabId: tab.id }, files: scripts });
+            } catch (_) {}
+
+            this.addCrawlLog('Engines loaded. Starting page 1...');
+
+            // Execute the multi-page crawl
+            const result = await this._withTimeout(
+                chrome.scripting.executeScript({
+                    target: { tabId: tab.id },
+                    function: (config) => {
+                        try {
+                            const scraper = new UniversalScraper({
+                                maxPages: config.maxPages,
+                                requestDelay: config.requestDelay,
+                                followPagination: config.crawlMode === 'pagination' || config.crawlMode === 'sitemap',
+                                followLinks: config.crawlMode === 'links' || config.crawlMode === 'sitemap',
+                                linkPattern: config.linkPattern || '',
+                                cleanData: true,
+                                removeDuplicates: true,
+                                includeMetadata: true,
+                            });
+
+                            if (config.stealth && typeof StealthEngine !== 'undefined') {
+                                const se = new StealthEngine();
+                                se.applyStealthPatches();
+                            }
+
+                            return JSON.parse(JSON.stringify(scraper.scrapeCurrentPage()));
+                        } catch (e) {
+                            return { __error: e.message };
+                        }
+                    },
+                    args: [{ crawlMode, maxPages, requestDelay, linkPattern, stealth, humanSim }]
+                }),
+                maxPages * (requestDelay + 10000) // generous timeout
+            );
+
+            if (result?.[0]?.result?.__error) {
+                throw new Error(result[0].result.__error);
+            }
+
+            if (result?.[0]?.result) {
+                this.extractedData = result[0].result;
+
+                // Build summary from UniversalScraper format if missing
+                if (!this.extractedData.summary) {
+                    const d = this.extractedData;
+                    const tableRows = (d.tables || []).reduce((a, t) => a + (t.rows?.length || 0), 0);
+                    this.extractedData.summary = {
+                        totalFields: tableRows + (d.textBlocks || []).length,
+                        totalEntities: (d.lists || []).reduce((a, l) => a + (l.items?.length || 0), 0) + (d.cards || []).length,
+                        totalForms: (d.forms || []).length,
+                        totalTables: (d.tables || []).length,
+                        tables: (d.tables || []).length,
+                        lists: (d.lists || []).length,
+                        forms: (d.forms || []).length,
+                        links: (d.links || []).length,
+                    };
+                }
+
+                const s = this.extractedData.summary || {};
+                const pagesScraped = this.extractedData.pages?.length || 1;
+
+                this.updateCrawlProgress('Crawl complete!', pagesScraped, maxPages);
+                this.addCrawlLog(`Done! Scraped ${pagesScraped} page(s), ${s.tables || 0} tables, ${s.lists || 0} lists found.`);
+
+                this.enableActionButtons();
+                this.showToast(`Multi-page scrape complete: ${pagesScraped} pages processed`, 'success');
+
+                this.addHistoryEntry({
+                    url: this.extractedData.url || tab.url,
+                    title: `[Multi-page] ${this.extractedData.title || tab.title}`,
+                    summary: s,
+                    status: 'extracted'
+                });
+            }
+
+        } catch (error) {
+            console.error('Multi-page crawl error:', error);
+            this.addCrawlLog('ERROR: ' + error.message);
+            this.showToast('Crawl failed: ' + error.message, 'error');
+        } finally {
+            this.isCrawling = false;
+            if (startBtn) startBtn.style.display = 'inline-flex';
+            if (stopBtn) stopBtn.style.display = 'none';
+        }
+    }
+
+    stopMultiPageCrawl() {
+        this.isCrawling = false;
+        this.addCrawlLog('Crawl stopped by user.');
+        this.showToast('Multi-page crawl stopped', 'info');
+
+        const startBtn = document.getElementById('startCrawlBtn');
+        const stopBtn = document.getElementById('stopCrawlBtn');
+        if (startBtn) startBtn.style.display = 'inline-flex';
+        if (stopBtn) stopBtn.style.display = 'none';
+    }
+
+    updateCrawlProgress(label, current, total) {
+        const labelEl = document.getElementById('multiProgressLabel');
+        const countEl = document.getElementById('multiProgressCount');
+        const fill = document.getElementById('multiProgressFill');
+
+        if (labelEl) labelEl.textContent = label;
+        if (countEl) countEl.textContent = `${current} / ${total} pages`;
+        if (fill) fill.style.width = `${total > 0 ? (current / total) * 100 : 0}%`;
+    }
+
+    addCrawlLog(message) {
+        const log = document.getElementById('crawlLog');
+        if (!log) return;
+        const time = new Date().toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+        const entry = document.createElement('div');
+        entry.className = 'crawl-log-entry';
+        entry.textContent = `[${time}] ${message}`;
+        log.appendChild(entry);
+        log.scrollTop = log.scrollHeight;
+    }
+
     // ─── Preview Modal ─────────────────────────────────────────────
 
     showPreview() {
         if (!this.extractedData) {
-            this.showToast('لا توجد بيانات للمعاينة', 'error');
+            this.showToast('No data to preview', 'error');
             return;
         }
 
@@ -326,12 +658,12 @@ class EnhancedPopupController {
         if (statsEl) {
             statsEl.innerHTML = `
                 <div class="preview-stat-cell">
-                    <div class="preview-stat-num">${preview.summary.totalItems ?? 0}</div>
-                    <div class="preview-stat-lbl">إجمالي العناصر</div>
+                    <div class="preview-stat-num">${preview.summary?.totalItems ?? 0}</div>
+                    <div class="preview-stat-lbl">Total Items</div>
                 </div>
                 <div class="preview-stat-cell">
-                    <div class="preview-stat-num">${preview.summary.totalFields ?? 0}</div>
-                    <div class="preview-stat-lbl">عدد الحقول</div>
+                    <div class="preview-stat-num">${preview.summary?.totalFields ?? 0}</div>
+                    <div class="preview-stat-lbl">Total Fields</div>
                 </div>
             `;
         }
@@ -348,23 +680,22 @@ class EnhancedPopupController {
         if (modal) modal.style.display = 'none';
     }
 
-    /** Confirm in preview then send (don't double-trigger) */
     async confirmAndSend() {
         this.closePreview();
 
         if (!this.extractedData) {
-            this.showToast('لا توجد بيانات للإرسال', 'error');
+            this.showToast('No data to send', 'error');
             return;
         }
 
-        this.showProgress('جاري الإرسال...', 30);
-        this.isExtracting = true; // prevent double
+        this.showProgress('Sending...', 30);
+        this.isExtracting = true;
 
         try {
             const result = await this.sendWithRetry(this.extractedData);
             this.hideProgress();
             if (result.success) {
-                this.showToast('تم الإرسال بنجاح إلى AutoGrader ✓', 'success');
+                this.showToast('Sent successfully to AutoGrader', 'success');
                 this.addHistoryEntry({
                     url: this.extractedData.url,
                     title: this.extractedData.title,
@@ -372,7 +703,7 @@ class EnhancedPopupController {
                     status: 'sent'
                 });
             } else {
-                this.showToast('فشل الإرسال: ' + result.message, 'error');
+                this.showToast('Send failed: ' + result.message, 'error');
             }
         } finally {
             this.isExtracting = false;
@@ -383,17 +714,17 @@ class EnhancedPopupController {
     // ─── Exports ──────────────────────────────────────────────────
 
     exportJSON() {
-        if (!this.extractedData) { this.showToast('لا توجد بيانات للتصدير', 'error'); return; }
+        if (!this.extractedData) { this.showToast('No data to export', 'error'); return; }
         const res = this.autoGraderIntegration.exportAsJSON(this.extractedData);
-        if (res.success) this.showToast('تم تصدير البيانات كـ JSON ✓', 'success');
+        if (res.success) this.showToast('Data exported as JSON', 'success');
     }
 
     exportCSV() {
-        if (!this.extractedData) { this.showToast('لا توجد بيانات للتصدير', 'error'); return; }
+        if (!this.extractedData) { this.showToast('No data to export', 'error'); return; }
 
         const res = this.autoGraderIntegration.exportAsCSV(this.extractedData);
         if (res.success) {
-            this.showToast('تم تصدير البيانات كـ CSV ✓', 'success');
+            this.showToast('Data exported as CSV', 'success');
         } else {
             this.showToast(res.message, 'error');
         }
@@ -405,7 +736,7 @@ class EnhancedPopupController {
         const dot = document.getElementById('statusDot');
         const text = document.getElementById('statusText');
         if (dot) dot.className = 'status-dot checking';
-        if (text) text.textContent = 'جاري الفحص...';
+        if (text) text.textContent = 'Checking...';
 
         const connected = await this.autoGraderIntegration.checkConnection();
         this.updateConnectionStatus(connected);
@@ -413,17 +744,17 @@ class EnhancedPopupController {
 
     async testConnection() {
         const btn = document.getElementById('testConnectionBtn');
-        if (btn) { btn.disabled = true; btn.textContent = 'جاري...'; }
+        if (btn) { btn.disabled = true; btn.textContent = 'Testing...'; }
 
         const connected = await this.autoGraderIntegration.checkConnection();
         this.updateConnectionStatus(connected);
 
-        if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H9v-2h2v2zm0-4H9V5h2v6z"/></svg> اختبار'; }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor"><path d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H9v-2h2v2zm0-4H9V5h2v6z"/></svg> Test'; }
 
         if (connected) {
-            this.showToast('الاتصال بـ AutoGrader ناجح ✓', 'success');
+            this.showToast('Connected to AutoGrader successfully', 'success');
         } else {
-            this.showToast('فشل الاتصال. تأكد من تشغيل AutoGrader على ' + this.autoGraderIntegration.autoGraderURL, 'error');
+            this.showToast('Connection failed. Make sure AutoGrader is running at ' + this.autoGraderIntegration.autoGraderURL, 'error');
         }
     }
 
@@ -433,7 +764,7 @@ class EnhancedPopupController {
         if (!dot || !text) return;
 
         dot.className = 'status-dot ' + (connected ? 'connected' : 'disconnected');
-        text.textContent = connected ? 'متصل' : 'غير متصل';
+        text.textContent = connected ? 'Connected' : 'Disconnected';
     }
 
     // ─── Elements Management ───────────────────────────────────────
@@ -472,7 +803,7 @@ class EnhancedPopupController {
                     <div class="element-name">${this._escape(el.name)}</div>
                     <div class="element-selector">${this._escape(el.selector)}</div>
                 </div>
-                <button class="element-remove" onclick="popupController.removeElement(${index})" title="حذف">
+                <button class="element-remove" onclick="popupController.removeElement(${index})" title="Remove">
                     <svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
                         <path d="M4 4l8 8M12 4l-8 8"/>
                     </svg>
@@ -486,7 +817,7 @@ class EnhancedPopupController {
         this.updateElementsList();
         this.saveElements();
         if (this.selectedElements.length === 0) this.disableActionButtons();
-        this.showToast('تم حذف العنصر', 'info');
+        this.showToast('Element removed', 'info');
     }
 
     clearElements() {
@@ -496,7 +827,7 @@ class EnhancedPopupController {
         this.saveElements();
         this.disableActionButtons();
         this.hideExtractionStats();
-        this.showToast('تم مسح جميع العناصر', 'info');
+        this.showToast('All elements cleared', 'info');
     }
 
     async saveElements() {
@@ -522,9 +853,8 @@ class EnhancedPopupController {
             ...entry
         };
         this.extractionHistory.unshift(newEntry);
-        // Keep last 20 entries
-        if (this.extractionHistory.length > 20) {
-            this.extractionHistory = this.extractionHistory.slice(0, 20);
+        if (this.extractionHistory.length > 50) {
+            this.extractionHistory = this.extractionHistory.slice(0, 50);
         }
         this.saveHistory();
         this.renderHistory();
@@ -545,29 +875,30 @@ class EnhancedPopupController {
                     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
                         <circle cx="12" cy="12" r="10"/><path d="M12 8v4M12 16h.01"/>
                     </svg>
-                    <p>لا يوجد سجل استخراجات بعد</p>
+                    <p>No extraction history yet</p>
                 </div>`;
             return;
         }
 
         container.innerHTML = this.extractionHistory.map(entry => {
             const time = new Date(entry.timestamp);
-            const timeStr = time.toLocaleTimeString('ar-SA', { hour: '2-digit', minute: '2-digit' });
+            const timeStr = time.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+            const dateStr = time.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
             const statusClass = entry.status === 'sent' ? 'success' : entry.status === 'failed' ? 'failed' : '';
-            const statusLabel = entry.status === 'sent' ? 'تم الإرسال' : entry.status === 'failed' ? 'فشل' : 'مستخرج';
+            const statusLabel = entry.status === 'sent' ? 'Sent' : entry.status === 'failed' ? 'Failed' : 'Extracted';
 
             return `
                 <div class="history-item">
                     <div class="history-item-header">
                         <span class="history-item-title" title="${this._escape(entry.url || '')}">
-                            ${this._escape(entry.title || entry.url || 'صفحة غير معروفة')}
+                            ${this._escape(entry.title || entry.url || 'Unknown page')}
                         </span>
-                        <span class="history-item-time">${timeStr}</span>
+                        <span class="history-item-time">${dateStr} ${timeStr}</span>
                     </div>
                     <div class="history-item-meta">
                         <span class="history-chip ${statusClass}">${statusLabel}</span>
-                        ${entry.summary?.totalFields ? `<span class="history-chip">${entry.summary.totalFields} حقل</span>` : ''}
-                        ${entry.summary?.totalEntities ? `<span class="history-chip">${entry.summary.totalEntities} كيان</span>` : ''}
+                        ${entry.summary?.totalFields ? `<span class="history-chip">${entry.summary.totalFields} fields</span>` : ''}
+                        ${entry.summary?.totalEntities ? `<span class="history-chip">${entry.summary.totalEntities} entities</span>` : ''}
                     </div>
                 </div>`;
         }).join('');
@@ -578,12 +909,12 @@ class EnhancedPopupController {
         this.saveHistory();
         this.renderHistory();
         this.updateFooterCount();
-        this.showToast('تم مسح سجل الاستخراجات', 'info');
+        this.showToast('Extraction history cleared', 'info');
     }
 
     updateFooterCount() {
         const el = document.getElementById('footerExtractionCount');
-        if (el) el.textContent = `${this.extractionHistory.length} عملية استخراج`;
+        if (el) el.textContent = `${this.extractionHistory.length} extraction${this.extractionHistory.length !== 1 ? 's' : ''}`;
     }
 
     // ─── UI State ──────────────────────────────────────────────────
@@ -639,10 +970,10 @@ class EnhancedPopupController {
             }
         };
 
-        update('statFields', summary.totalFields);
-        update('statEntities', summary.totalEntities);
-        update('statForms', summary.totalForms);
-        update('statTables', summary.totalTables);
+        update('statFields', summary.totalFields || summary.tables || 0);
+        update('statEntities', summary.totalEntities || summary.lists || 0);
+        update('statForms', summary.totalForms || summary.forms || 0);
+        update('statTables', summary.totalTables || summary.tables || 0);
     }
 
     hideExtractionStats() {
@@ -705,6 +1036,9 @@ class EnhancedPopupController {
             setVal('extractionTimeout', this.settings.extractionTimeout);
             setVal('autoSaveOption', this.settings.autoSave);
             setVal('notificationsOption', this.settings.notifications);
+            setVal('globalStealthOption', this.settings.stealthMode);
+            setVal('canvasNoiseOption', this.settings.canvasNoise);
+            setVal('sessionPersistOption', this.settings.sessionPersist);
 
         } catch (error) {
             console.error('Error loading settings:', error);
@@ -723,9 +1057,12 @@ class EnhancedPopupController {
             extractionTimeout: getVal('extractionTimeout') ?? 30,
             autoSave: getVal('autoSaveOption') ?? true,
             notifications: getVal('notificationsOption') ?? true,
+            stealthMode: getVal('globalStealthOption') ?? true,
+            canvasNoise: getVal('canvasNoiseOption') ?? true,
+            sessionPersist: getVal('sessionPersistOption') ?? true,
         };
 
-        // Sync timeout to integration class so requests honour the new value
+        // Sync timeout to integration class
         this.autoGraderIntegration.setRequestTimeout(this.settings.extractionTimeout * 1000);
 
         await chrome.storage.local.set({ 'autograder_advanced_settings': this.settings });
@@ -734,7 +1071,7 @@ class EnhancedPopupController {
     async saveAutoGraderUrl(url) {
         const trimmed = (url || '').trim();
         if (!trimmed.startsWith('http')) {
-            this.showToast('عنوان URL غير صالح. يجب أن يبدأ بـ http أو https', 'error');
+            this.showToast('Invalid URL. Must start with http or https', 'error');
             return;
         }
         this.autoGraderIntegration.setAutoGraderURL(trimmed);
@@ -752,7 +1089,7 @@ class EnhancedPopupController {
     _withTimeout(promise, ms) {
         return Promise.race([
             promise,
-            new Promise((_, reject) => setTimeout(() => reject(new Error('انتهت مهلة الاستخراج')), ms))
+            new Promise((_, reject) => setTimeout(() => reject(new Error('Extraction timed out')), ms))
         ]);
     }
 }
@@ -774,6 +1111,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         popupController.updateElementsList();
         popupController.saveElements();
         popupController.enableActionButtons();
-        popupController.showToast(`تم تحديد ${message.elements?.length || 0} عنصر`, 'success');
+        popupController.showToast(`${message.elements?.length || 0} elements selected`, 'success');
+    }
+
+    if (message.action === 'crawlProgress') {
+        popupController.updateCrawlProgress(
+            message.label || 'Crawling...',
+            message.current || 0,
+            message.total || 0
+        );
+        if (message.log) popupController.addCrawlLog(message.log);
     }
 });

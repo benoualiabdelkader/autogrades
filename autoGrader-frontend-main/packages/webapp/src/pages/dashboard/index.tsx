@@ -1,6 +1,6 @@
 ﻿"use client";
 
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faChartLine,
@@ -8,6 +8,7 @@ import {
   faCog,
   faDatabase,
   faExclamationTriangle,
+  faFileUpload,
   faFilter,
   faFileCode,
   faGraduationCap,
@@ -23,6 +24,8 @@ import RealWorkflowModal from "@/components/RealWorkflowModal";
 import ExtensionDataView from "@/components/ExtensionDataView";
 import { WorkflowRegistry } from "@/lib/n8n/WorkflowRegistry";
 import type { TaskInput } from "@/lib/n8n/WorkflowGenerator";
+import { AICommandProcessor, type AICommand, type CommandType } from "@/lib/ai/AICommandProcessor";
+import { AIDataManager, type DataSet, type DataAnalysis } from "@/lib/ai/AIDataManager";
 
 type Task = {
   id: number;
@@ -87,6 +90,9 @@ const numericValue = (value: unknown, fallback = 0) => {
 
 export default function DashboardPage() {
   const registry = useMemo(() => WorkflowRegistry.getInstance(), []);
+  const aiProcessor = useMemo(() => AICommandProcessor.getInstance(), []);
+  const dataManager = useMemo(() => AIDataManager.getInstance(), []);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [tasks, setTasks] = useState<Task[]>(BASE_TASKS);
   const [selectedTaskId, setSelectedTaskId] = useState(BASE_TASKS[0].id);
@@ -104,8 +110,17 @@ export default function DashboardPage() {
   const [studentInsightLoading, setStudentInsightLoading] = useState(false);
   const [studentInsightError, setStudentInsightError] = useState("");
 
+  // Tracks whether the Moodle DB is reachable — prevents repeated failed queries
+  const dbAvailableRef = useRef<boolean | null>(null); // null = not yet checked
+
   const [runTaskState, setRunTaskState] = useState<Task | null>(null);
   const [openRunModal, setOpenRunModal] = useState(false);
+
+  // AI Data Management State
+  const [importedDatasets, setImportedDatasets] = useState<DataSet[]>([]);
+  const [activeDatasetId, setActiveDatasetId] = useState<string | null>(null);
+  const [customRules, setCustomRules] = useState<Array<{ id: string; name: string; weight: number; type: string; description: string }>>([]);
+  const [pendingFileAction, setPendingFileAction] = useState<'csv' | 'json' | null>(null);
 
   const [reviewPrompt, setReviewPrompt] = useState("Review selected student data for an English teacher. Return score /100, strengths, improvements, and final feedback.");
   const [reviewBusy, setReviewBusy] = useState(false);
@@ -121,7 +136,7 @@ export default function DashboardPage() {
   const [chatInput, setChatInput] = useState("");
   const [assistantBusy, setAssistantBusy] = useState(false);
   const [messages, setMessages] = useState<ChatMessage[]>([
-    { role: "ai", content: 'Welcome teacher. You can control the full dashboard from chat. Try: "help commands".', time: "" },
+    { role: "ai", content: '🤖 Welcome! I am your AI Assistant with full system control. I can create workflows, import/analyze data (CSV/JSON), manage grading rules, and more — all through chat.\n\nTry: "help" | "مساعدة" | "status" | "create workflow"', time: "" },
   ]);
 
   const selectedTask = useMemo(() => tasks.find((t) => t.id === selectedTaskId) || null, [tasks, selectedTaskId]);
@@ -190,20 +205,35 @@ export default function DashboardPage() {
   }, []);
 
   const runDbQuery = useCallback(async (query: string): Promise<PreviewRow[]> => {
+    // Skip if we already know DB is offline
+    if (dbAvailableRef.current === false) {
+      throw new Error("Database not available.");
+    }
     const res = await fetch("/api/moodle/query", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ ...DB, query }),
     });
     const data = await res.json();
+    if (data?.errorCode === 'DB_UNAVAILABLE') {
+      dbAvailableRef.current = false;
+      throw new Error(data?.error || "Database not available.");
+    }
     if (!res.ok || !data?.success) {
       throw new Error(data?.error || "Database query failed.");
     }
+    dbAvailableRef.current = true;
     return Array.isArray(data.data) ? (data.data as PreviewRow[]) : [];
   }, []);
 
   const fetchPreview = useCallback(
     async (task: Task): Promise<PreviewRow[]> => {
+      // Skip if DB is known to be offline
+      if (dbAvailableRef.current === false) {
+        setPreview([]);
+        setPreviewError("Database not available — use AI Assistant or import CSV/JSON data.");
+        return [];
+      }
       setLoadingPreview(true);
       setPreviewError("");
       setSelectedRow(null);
@@ -214,11 +244,18 @@ export default function DashboardPage() {
           body: JSON.stringify({ ...DB, query: queryFor(task) }),
         });
         const data = await res.json();
+        if (data?.errorCode === 'DB_UNAVAILABLE') {
+          dbAvailableRef.current = false;
+          setPreview([]);
+          setPreviewError("Database not available — use AI Assistant or import CSV/JSON data.");
+          return [];
+        }
         if (!res.ok || !data?.success) {
           setPreview([]);
           setPreviewError(data?.error || "Failed to load preview data.");
           return [];
         }
+        dbAvailableRef.current = true;
         const rows = Array.isArray(data.data) ? (data.data as PreviewRow[]) : [];
         setPreview(rows);
         if (rows.length) setSelectedRow(0);
@@ -235,6 +272,11 @@ export default function DashboardPage() {
   );
 
   const fetchStats = useCallback(async () => {
+    if (dbAvailableRef.current === false) {
+      setStats(null);
+      setStatsError("Database not available.");
+      return;
+    }
     setStatsError("");
     try {
       const params = new URLSearchParams({ dbhost: DB.host, dbport: DB.port, dbname: DB.database, dbuser: DB.user, dbpass: DB.password, prefix: DB.prefix });
@@ -262,6 +304,11 @@ export default function DashboardPage() {
     async (row: PreviewRow | null) => {
       setStudentInsightError("");
       setStudentInsight(null);
+
+      if (dbAvailableRef.current === false) {
+        setStudentInsightError("Database not available — student insights require a Moodle DB connection.");
+        return;
+      }
 
       const studentId = extractStudentId(row);
       if (!studentId) {
@@ -857,37 +904,8 @@ export default function DashboardPage() {
       const visibleRows = getVisibleRows();
 
       if (/(^|\s)(help|commands|control)(\s|$)/.test(n) || /مساعدة|اوامر|أوامر/.test(raw)) {
-        appendAI(
-          [
-            "Dashboard Control Commands:",
-            "",
-            "📋 Tasks & Navigation:",
-            "- list tasks | open task 2 | run task 2",
-            "- pause task 2 | activate task 2",
-            "- autopilot review | what next",
-            "",
-            "📊 Data & Preview:",
-            "- preview data | refresh all | refresh stats",
-            "- search tasks: grading | search rows: ahmed",
-            "- select row 3 | select student id 45 | next row",
-            "- class summary | grade report",
-            "",
-            "✏️ Review & Feedback:",
-            "- set review prompt: ... | review selected",
-            "- quick summary prompt | detailed correction prompt | motivational prompt",
-            "- batch review all | batch review top 5",
-            "- save draft | clear draft | append draft: ...",
-            "- insert feedback template",
-            "",
-            "📋 Export & Copy:",
-            "- copy summary | copy details | export csv",
-            "",
-            "⚙️ Advanced:",
-            '- create task title: Essay Coach | description: ... | prompt: ... | icon: ESS',
-            "- show advanced | hide advanced | status",
-            "- You can chain commands with ';' or 'then'",
-          ].join("\n")
-        );
+        const lang = /[\u0600-\u06FF]/.test(raw) ? 'ar' : 'en';
+        appendAI(aiProcessor.getHelpText(lang));
         return true;
       }
 
@@ -1389,6 +1407,505 @@ export default function DashboardPage() {
     ]
   );
 
+  // ===== AI-Powered File Upload Handler =====
+  const handleFileUpload = useCallback(async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const content = e.target?.result as string;
+      if (!content) return;
+
+      try {
+        if (file.name.endsWith('.csv') || file.name.endsWith('.tsv') || pendingFileAction === 'csv') {
+          const dataset = dataManager.parseCSV(content, { name: file.name });
+          setImportedDatasets(dataManager.getAllDatasets());
+          setActiveDatasetId(dataset.id);
+          appendAI(`✅ CSV file "${file.name}" imported successfully!\n- Rows: ${dataset.metadata.rowCount}\n- Columns: ${dataset.metadata.columnCount}\n- Headers: ${dataset.headers.slice(0, 6).join(', ')}${dataset.headers.length > 6 ? '...' : ''}\n\nTry: "analyze data" to see insights, or "export csv" to export.`);
+        } else if (file.name.endsWith('.json') || pendingFileAction === 'json') {
+          const jsonData = JSON.parse(content);
+          const dataset = dataManager.parseJSON(jsonData, { name: file.name });
+          setImportedDatasets(dataManager.getAllDatasets());
+          setActiveDatasetId(dataset.id);
+          appendAI(`✅ JSON file "${file.name}" imported successfully!\n- Records: ${dataset.metadata.rowCount}\n- Fields: ${dataset.metadata.columnCount}\n- Headers: ${dataset.headers.slice(0, 6).join(', ')}${dataset.headers.length > 6 ? '...' : ''}\n\nTry: "analyze data" to see insights.`);
+        } else {
+          appendAI(`⚠️ Unsupported file type. Please upload a .csv or .json file.`);
+        }
+      } catch (err: any) {
+        appendAI(`❌ Error importing file: ${err.message || 'Unknown error'}`);
+      }
+      setPendingFileAction(null);
+    };
+    reader.readAsText(file);
+    // Reset the input
+    event.target.value = '';
+  }, [appendAI, dataManager, pendingFileAction]);
+
+  // ===== AI Command Execution Engine =====
+  const executeAICommand = useCallback(async (command: AICommand): Promise<boolean> => {
+    const lang = command.language;
+
+    switch (command.type) {
+      // ===== WORKFLOW CREATION VIA CHAT =====
+      case 'workflow_create': {
+        const parsed = aiProcessor.parseWorkflowFromChat(command.rawInput);
+        const name = command.params.name || parsed.name || `Workflow ${tasks.length + 1}`;
+        const description = command.params.description || parsed.description || `Custom workflow created via chat`;
+
+        // Create task + workflow
+        const id = tasks.reduce((max, t) => Math.max(max, t.id), 0) + 1;
+        const task: Task = {
+          id,
+          title: name,
+          description,
+          prompt: `AI workflow for: ${description}. ${parsed.rules.length ? `Rules: ${parsed.rules.map(r => `${r.name}(${r.weight}%)`).join(', ')}` : ''}`,
+          icon: name.slice(0, 3).toUpperCase(),
+          dataSource: parsed.dataSource === 'moodle' ? 'mdl_user' : 'extension',
+          active: true,
+          isCustom: true,
+        };
+
+        const wfTask: TaskInput = { id: task.id, title: task.title, description: task.description, prompt: task.prompt, icon: task.icon };
+        try {
+          await registry.generateAndRegisterWorkflow(wfTask);
+          const next = [...tasks, task];
+          setTasks(next);
+          setSelectedTaskId(task.id);
+          saveCustomTasks(next);
+
+          // Save custom rules if provided
+          if (parsed.rules.length > 0) {
+            const newRules = parsed.rules.map((r, i) => ({
+              id: `rule_${Date.now()}_${i}`,
+              name: r.name,
+              weight: r.weight,
+              type: r.type,
+              description: '',
+            }));
+            setCustomRules(prev => [...prev, ...newRules]);
+          }
+
+          const stepsText = parsed.steps.map((s, i) => `${i + 1}. ${s.name}`).join('\n');
+          const rulesText = parsed.rules.length > 0
+            ? `\n\n📏 Rules:\n${parsed.rules.map(r => `- ${r.name}: ${r.weight}%`).join('\n')}`
+            : '';
+
+          appendAI(lang === 'ar'
+            ? `✅ تم إنشاء Workflow "${name}" بنجاح!\n\n📋 الخطوات:\n${stepsText}${rulesText}\n\n💡 استخدم "شغل workflow ${id}" لتشغيله.`
+            : `✅ Workflow "${name}" created successfully!\n\n📋 Steps:\n${stepsText}${rulesText}\n\n💡 Use "run workflow ${id}" to execute it.`
+          );
+          return true;
+        } catch (e: any) {
+          appendAI(`❌ ${lang === 'ar' ? 'فشل إنشاء Workflow' : 'Failed to create workflow'}: ${e.message || 'Unknown error'}`);
+          return true;
+        }
+      }
+
+      // ===== WORKFLOW EDIT =====
+      case 'workflow_edit': {
+        const targetTask = command.params.id
+          ? tasks.find(t => t.id === command.params.id)
+          : selectedTask;
+        if (!targetTask) {
+          appendAI(lang === 'ar' ? '⚠️ لم يتم العثور على Workflow. حدد رقم المهمة.' : '⚠️ Workflow not found. Specify a task ID.');
+          return true;
+        }
+        const updates: Partial<Task> = {};
+        if (command.params.name) updates.title = command.params.name;
+        if (command.params.description) updates.description = command.params.description;
+        setTasks(current => {
+          const next = current.map(t => t.id === targetTask.id ? { ...t, ...updates } : t);
+          saveCustomTasks(next);
+          return next;
+        });
+        appendAI(`✅ ${lang === 'ar' ? 'تم تحديث' : 'Updated'} "${targetTask.title}"`);
+        return true;
+      }
+
+      // ===== WORKFLOW RUN =====
+      case 'workflow_run': {
+        const t = command.params.id ? tasks.find(t => t.id === command.params.id) : selectedTask;
+        if (!t) {
+          appendAI(lang === 'ar' ? '⚠️ لم يتم العثور على المهمة.' : '⚠️ Task not found.');
+          return true;
+        }
+        setSelectedTaskId(t.id);
+        if (runWorkflow(t, true)) {
+          appendAI(`🚀 ${lang === 'ar' ? `تشغيل "${t.title}"...` : `Executing "${t.title}"...`}`);
+        }
+        return true;
+      }
+
+      // ===== WORKFLOW LIST =====
+      case 'workflow_list': {
+        const list = tasks.map(t => {
+          const ready = registry.hasWorkflow(t.id);
+          return `${t.id}. **${t.title}** — ${t.description} [${ready ? '✅' : '⚠️'}${t.active ? '' : ' ⏸️ paused'}]`;
+        }).join('\n');
+        appendAI(`${lang === 'ar' ? '📋 **قائمة Workflows:**' : '📋 **Workflows:**'}\n${list}`);
+        return true;
+      }
+
+      // ===== DATA IMPORT CSV =====
+      case 'data_import_csv': {
+        // Check if the message itself contains inline CSV data
+        const csvDetection = aiProcessor.detectInlineCSV(command.rawInput);
+        if (csvDetection.found) {
+          try {
+            const dataset = dataManager.parseCSV(csvDetection.data, {
+              delimiter: command.params.delimiter,
+              hasHeaders: command.params.hasHeaders,
+              name: `Chat CSV Import ${new Date().toLocaleTimeString()}`,
+            });
+            setImportedDatasets(dataManager.getAllDatasets());
+            setActiveDatasetId(dataset.id);
+            appendAI(lang === 'ar'
+              ? `✅ تم استيراد بيانات CSV بنجاح!\n- سجلات: ${dataset.metadata.rowCount}\n- أعمدة: ${dataset.metadata.columnCount}\n- العناوين: ${dataset.headers.join(', ')}\n\n💡 اكتب "حلل البيانات" لرؤية التحليل.`
+              : `✅ CSV data imported successfully!\n- Records: ${dataset.metadata.rowCount}\n- Columns: ${dataset.metadata.columnCount}\n- Headers: ${dataset.headers.join(', ')}\n\n💡 Type "analyze data" to see insights.`
+            );
+            return true;
+          } catch (err: any) {
+            appendAI(`❌ ${lang === 'ar' ? 'خطأ في تحليل CSV' : 'CSV parsing error'}: ${err.message}`);
+            return true;
+          }
+        }
+
+        // No inline data — prompt file upload
+        setPendingFileAction('csv');
+        fileInputRef.current?.click();
+        appendAI(lang === 'ar'
+          ? '📂 يرجى اختيار ملف CSV... أو يمكنك لصق بيانات CSV مباشرة في المحادثة.\n\nمثال:\n```csv\nname,grade,email\nAhmed,85,ahmed@mail.com\nSara,92,sara@mail.com\n```'
+          : '📂 Please select a CSV file... Or you can paste CSV data directly in the chat.\n\nExample:\n```csv\nname,grade,email\nAhmed,85,ahmed@mail.com\nSara,92,sara@mail.com\n```'
+        );
+        return true;
+      }
+
+      // ===== DATA IMPORT JSON =====
+      case 'data_import_json': {
+        const jsonDetection = aiProcessor.detectInlineJSON(command.rawInput);
+        if (jsonDetection.found) {
+          try {
+            const dataset = dataManager.parseJSON(jsonDetection.data, {
+              name: `Chat JSON Import ${new Date().toLocaleTimeString()}`,
+            });
+            setImportedDatasets(dataManager.getAllDatasets());
+            setActiveDatasetId(dataset.id);
+            appendAI(lang === 'ar'
+              ? `✅ تم استيراد بيانات JSON بنجاح!\n- سجلات: ${dataset.metadata.rowCount}\n- حقول: ${dataset.metadata.columnCount}\n- الحقول: ${dataset.headers.slice(0, 8).join(', ')}\n\n💡 اكتب "حلل البيانات" لرؤية التحليل.`
+              : `✅ JSON data imported successfully!\n- Records: ${dataset.metadata.rowCount}\n- Fields: ${dataset.metadata.columnCount}\n- Fields: ${dataset.headers.slice(0, 8).join(', ')}\n\n💡 Type "analyze data" to see insights.`
+            );
+            return true;
+          } catch (err: any) {
+            appendAI(`❌ ${lang === 'ar' ? 'خطأ في تحليل JSON' : 'JSON parsing error'}: ${err.message}`);
+            return true;
+          }
+        }
+
+        setPendingFileAction('json');
+        fileInputRef.current?.click();
+        appendAI(lang === 'ar'
+          ? '📂 يرجى اختيار ملف JSON... أو يمكنك لصق بيانات JSON مباشرة.\n\nمثال:\n```json\n[{"name": "Ahmed", "grade": 85}, {"name": "Sara", "grade": 92}]\n```'
+          : '📂 Please select a JSON file... Or paste JSON data directly.\n\nExample:\n```json\n[{"name": "Ahmed", "grade": 85}, {"name": "Sara", "grade": 92}]\n```'
+        );
+        return true;
+      }
+
+      // ===== DATA EXPORT =====
+      case 'data_export': {
+        const format = command.params.format || 'csv';
+        
+        // Try to export imported dataset first, fall back to preview data
+        const dataset = activeDatasetId ? dataManager.getDataset(activeDatasetId) : dataManager.getLastDataset();
+        
+        if (dataset) {
+          try {
+            if (format === 'csv') {
+              const csvContent = dataManager.exportToCSV(dataset.id);
+              dataManager.downloadAsFile(csvContent, `${dataset.name.replace(/\s/g, '_')}_export.csv`, 'text/csv');
+              appendAI(`✅ ${lang === 'ar' ? `تم تصدير ${dataset.metadata.rowCount} سجل كـ CSV` : `Exported ${dataset.metadata.rowCount} records as CSV`}`);
+            } else if (format === 'json') {
+              const jsonContent = dataManager.exportToJSON(dataset.id);
+              dataManager.downloadAsFile(jsonContent, `${dataset.name.replace(/\s/g, '_')}_export.json`, 'application/json');
+              appendAI(`✅ ${lang === 'ar' ? `تم تصدير ${dataset.metadata.rowCount} سجل كـ JSON` : `Exported ${dataset.metadata.rowCount} records as JSON`}`);
+            } else {
+              appendAI(`⚠️ ${lang === 'ar' ? `صيغة "${format}" غير مدعومة حالياً` : `Format "${format}" not yet supported`}. Try: csv, json`);
+            }
+            return true;
+          } catch (err: any) {
+            appendAI(`❌ Export error: ${err.message}`);
+            return true;
+          }
+        }
+
+        // Fall back to preview data export
+        if (preview.length > 0) {
+          const headers = Object.keys(preview[0]);
+          const csvRows = [headers.join(','), ...preview.map(row => headers.map(h => {
+            const val = cell(row[h]);
+            return val.includes(',') || val.includes('"') ? `"${val.replace(/"/g, '""')}"` : val;
+          }).join(','))];
+          const csvContent = csvRows.join('\n');
+          if (format === 'json') {
+            const blob = new Blob([JSON.stringify(preview, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'data_export.json';
+            link.click();
+          } else {
+            const blob = new Blob([csvContent], { type: 'text/csv' });
+            const url = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = 'data_export.csv';
+            link.click();
+          }
+          appendAI(`✅ ${lang === 'ar' ? `تم تصدير ${preview.length} سجل` : `Exported ${preview.length} records as ${format.toUpperCase()}`}`);
+          return true;
+        }
+
+        appendAI(lang === 'ar' ? '⚠️ لا توجد بيانات للتصدير. استورد بيانات أولاً.' : '⚠️ No data to export. Import data first.');
+        return true;
+      }
+
+      // ===== DATA ANALYSIS =====
+      case 'data_analyze': {
+        // Try imported datasets first
+        let analysis: DataAnalysis | null = null;
+        const dataset = activeDatasetId ? dataManager.getDataset(activeDatasetId) : dataManager.getLastDataset();
+
+        if (dataset) {
+          analysis = dataManager.analyzeData(dataset.id);
+        } else if (preview.length > 0) {
+          // Analyze preview data
+          const tempDataset = dataManager.importFromPreview(preview, 'Dashboard Preview Data');
+          setActiveDatasetId(tempDataset.id);
+          setImportedDatasets(dataManager.getAllDatasets());
+          analysis = dataManager.analyzeData(tempDataset.id);
+        }
+
+        if (analysis) {
+          const text = dataManager.getAnalysisText(analysis, lang);
+          appendAI(text);
+        } else {
+          appendAI(lang === 'ar' ? '⚠️ لا توجد بيانات للتحليل. استورد بيانات أو حمّل بيانات الطلاب أولاً.' : '⚠️ No data to analyze. Import data or load student preview first.');
+        }
+        return true;
+      }
+
+      // ===== DATA QUERY =====
+      case 'data_query': {
+        const dataset = activeDatasetId ? dataManager.getDataset(activeDatasetId) : dataManager.getLastDataset();
+        if (!dataset && preview.length === 0) {
+          appendAI(lang === 'ar' ? '⚠️ لا توجد بيانات للبحث فيها.' : '⚠️ No data to search.');
+          return true;
+        }
+
+        if (dataset && command.params.condition) {
+          const conditions = dataManager.parseNaturalFilter(command.params.condition, dataset);
+          if (conditions.length > 0) {
+            const results = dataManager.filterRecords(dataset.id, conditions);
+            appendAI(lang === 'ar'
+              ? `🔍 تم العثور على **${results.length}** سجل من أصل ${dataset.metadata.rowCount}.\n${results.slice(0, 5).map((r, i) => `${i + 1}. ${Object.values(r).slice(0, 4).map(v => String(v ?? '')).join(' | ')}`).join('\n')}${results.length > 5 ? `\n... و ${results.length - 5} سجلات أخرى` : ''}`
+              : `🔍 Found **${results.length}** records out of ${dataset.metadata.rowCount}.\n${results.slice(0, 5).map((r, i) => `${i + 1}. ${Object.values(r).slice(0, 4).map(v => String(v ?? '')).join(' | ')}`).join('\n')}${results.length > 5 ? `\n... and ${results.length - 5} more` : ''}`
+            );
+            return true;
+          }
+        }
+
+        // Fall through to natural language query via AI
+        return false;
+      }
+
+      // ===== RULES ADD =====
+      case 'rules_add': {
+        const newRule = {
+          id: `rule_${Date.now()}`,
+          name: command.params.name || (lang === 'ar' ? 'قاعدة جديدة' : 'New Rule'),
+          weight: command.params.weight || 20,
+          type: command.params.type || 'keyword',
+          description: command.params.description || '',
+        };
+        setCustomRules(prev => {
+          const total = prev.reduce((s, r) => s + r.weight, 0) + newRule.weight;
+          if (total > 100) {
+            appendAI(lang === 'ar'
+              ? `⚠️ مجموع الأوزان (${total}%) يتجاوز 100%. يرجى تعديل الأوزان.`
+              : `⚠️ Total weight (${total}%) exceeds 100%. Please adjust weights.`
+            );
+          }
+          return [...prev, newRule];
+        });
+        appendAI(lang === 'ar'
+          ? `✅ تمت إضافة قاعدة "${newRule.name}" (وزن: ${newRule.weight}%, نوع: ${newRule.type})\n\n📏 القواعد الحالية: ${customRules.length + 1}`
+          : `✅ Rule "${newRule.name}" added (weight: ${newRule.weight}%, type: ${newRule.type})\n\n📏 Current rules: ${customRules.length + 1}`
+        );
+        return true;
+      }
+
+      // ===== RULES LIST =====
+      case 'rules_list': {
+        if (customRules.length === 0) {
+          appendAI(lang === 'ar'
+            ? '📏 لا توجد قواعد مخصصة. يتم استخدام القواعد الافتراضية.\n\n💡 أضف قاعدة: "اضف قاعدة اسم: دقة المحتوى | وزن: 30"'
+            : '📏 No custom rules. Default rules are used.\n\n💡 Add a rule: "add rule name: Content Accuracy | weight: 30"'
+          );
+          return true;
+        }
+        const totalWeight = customRules.reduce((s, r) => s + r.weight, 0);
+        const list = customRules.map((r, i) => `${i + 1}. **${r.name}** — ${r.weight}% (${r.type})${r.description ? ` — ${r.description}` : ''}`).join('\n');
+        appendAI(`📏 ${lang === 'ar' ? '**قواعد التقييم المخصصة:**' : '**Custom Grading Rules:**'}\n${list}\n\n${lang === 'ar' ? `مجموع الأوزان: ${totalWeight}%` : `Total weight: ${totalWeight}%`}`);
+        return true;
+      }
+
+      // ===== RULES EDIT =====
+      case 'rules_edit': {
+        const ruleId = command.params.id;
+        const ruleName = command.params.name;
+        const target = customRules.find(r => r.id === ruleId || r.name.toLowerCase().includes((ruleName || '').toLowerCase()));
+        if (!target) {
+          appendAI(lang === 'ar' ? '⚠️ لم يتم العثور على القاعدة.' : '⚠️ Rule not found.');
+          return true;
+        }
+        if (command.params.weight !== null) {
+          setCustomRules(prev => prev.map(r => r.id === target.id ? { ...r, weight: command.params.weight } : r));
+          appendAI(`✅ ${lang === 'ar' ? `تم تحديث وزن "${target.name}" إلى ${command.params.weight}%` : `Updated weight of "${target.name}" to ${command.params.weight}%`}`);
+        }
+        return true;
+      }
+
+      // ===== DESCRIPTION SET =====
+      case 'description_set': {
+        if (!selectedTask) {
+          appendAI(lang === 'ar' ? '⚠️ اختر مهمة أولاً.' : '⚠️ Select a task first.');
+          return true;
+        }
+        const newDesc = command.params.description;
+        if (!newDesc) {
+          appendAI(lang === 'ar' ? '⚠️ يرجى تحديد الوصف الجديد.' : '⚠️ Please provide the new description.');
+          return true;
+        }
+        setTasks(current => {
+          const next = current.map(t => t.id === selectedTask.id ? { ...t, description: newDesc } : t);
+          saveCustomTasks(next);
+          return next;
+        });
+        appendAI(`✅ ${lang === 'ar' ? `تم تحديث وصف "${selectedTask.title}" إلى: ${newDesc}` : `Updated description of "${selectedTask.title}" to: ${newDesc}`}`);
+        return true;
+      }
+
+      // ===== STUDENT ANALYZE =====
+      case 'student_analyze': {
+        if (command.params.id) {
+          const idx = preview.findIndex(row => extractStudentId(row) === command.params.id);
+          if (idx >= 0) {
+            setSelectedRow(idx);
+            appendAI(lang === 'ar' ? `تحليل الطالب رقم ${command.params.id}...` : `Analyzing student #${command.params.id}...`);
+            // The student insight will auto-load via useEffect
+            return true;
+          }
+        }
+        if (command.params.name) {
+          const nameQuery = normalize(command.params.name);
+          const idx = preview.findIndex(row =>
+            normalize(cell(row.student_name ?? row.firstname ?? row.fullname ?? row.name ?? '')).includes(nameQuery)
+          );
+          if (idx >= 0) {
+            setSelectedRow(idx);
+            appendAI(lang === 'ar' ? `جاري تحليل الطالب "${command.params.name}"...` : `Analyzing student "${command.params.name}"...`);
+            return true;
+          }
+        }
+        if (studentInsight?.overview) {
+          appendAI([
+            `📊 ${lang === 'ar' ? 'تحليل الطالب' : 'Student Analysis'}: ${studentInsight.overview.studentName}`,
+            `- ${lang === 'ar' ? 'المعدل' : 'Average'}: ${studentInsight.overview.averageGrade}%`,
+            `- ${lang === 'ar' ? 'الخطورة' : 'Risk'}: ${studentInsight.riskLevel.toUpperCase()} (${studentInsight.riskScore}/7)`,
+            `- ${lang === 'ar' ? 'عدم النشاط' : 'Inactivity'}: ${studentInsight.inactivityDays} ${lang === 'ar' ? 'يوم' : 'days'}`,
+            `- ${lang === 'ar' ? 'الإرسالات' : 'Submissions'}: ${studentInsight.overview.submissionsCount}`,
+            `- ${lang === 'ar' ? 'ملاحظات' : 'Notes'}: ${studentInsight.notes.join(' | ')}`,
+          ].join('\n'));
+          return true;
+        }
+        appendAI(lang === 'ar' ? '⚠️ حدد طالباً أولاً أو اكتب اسم/رقم الطالب.' : '⚠️ Select a student first or provide student name/ID.');
+        return true;
+      }
+
+      // ===== STUDENT BATCH =====
+      case 'student_batch': {
+        if (!selectedTask) {
+          appendAI(lang === 'ar' ? '⚠️ اختر مهمة أولاً.' : '⚠️ Select a task first.');
+          return true;
+        }
+        const rows = preview.length ? preview : await fetchPreview(selectedTask);
+        if (!rows.length) {
+          appendAI(lang === 'ar' ? '⚠️ لا توجد بيانات للمراجعة.' : '⚠️ No data to review.');
+          return true;
+        }
+        const limit = Math.min(command.params.limit || 5, rows.length, 10);
+        appendAI(`🔄 ${lang === 'ar' ? `بدء มراجعة جماعية لـ ${limit} طالب...` : `Starting batch review of ${limit} students...`}`);
+        let reviewed = 0;
+        for (let i = 0; i < limit; i++) {
+          setSelectedRow(i);
+          const smartPrompt = buildSmartReviewPrompt(rows[i]);
+          const result = await reviewStudentData(selectedTask, rows[i], smartPrompt);
+          if (result.ok) reviewed++;
+        }
+        appendAI(`✅ ${lang === 'ar' ? `اكتملت المراجعة الجماعية: ${reviewed}/${limit}` : `Batch review complete: ${reviewed}/${limit} students reviewed`}`);
+        return true;
+      }
+
+      // ===== RUBRIC GENERATION =====
+      case 'rubric_generate': {
+        const subject = command.params.subject || selectedTask?.title || 'General Assignment';
+        const level = command.params.level || 'intermediate';
+        const rubricPrompt = `Generate a comprehensive grading rubric for: "${subject}" at ${level} level. Include: criteria names, descriptions, weight percentages, and performance levels (Excellent/Good/Satisfactory/Needs Improvement/Poor) with specific descriptions for each.`;
+        const reply = await askModel(rubricPrompt);
+        if (reply) {
+          appendAI(reply);
+        } else {
+          appendAI(lang === 'ar' ? '⚠️ فشل في توليد الروبريك.' : '⚠️ Failed to generate rubric.');
+        }
+        return true;
+      }
+
+      // ===== SYSTEM STATUS =====
+      case 'system_status': {
+        const datasets = dataManager.getAllDatasets();
+        const lines = [
+          lang === 'ar' ? '📊 **حالة النظام الكاملة:**' : '📊 **Full System Status:**',
+          '',
+          `${lang === 'ar' ? '📋 المهام' : '📋 Tasks'}: ${tasks.length} (${readyCount} ${lang === 'ar' ? 'جاهزة' : 'ready'})`,
+          `${lang === 'ar' ? '👨‍🎓 الطالب المحدد' : '👨‍🎓 Selected Student'}: ${selectedRowData ? cell(selectedRowData.student_name ?? selectedRowData.firstname ?? 'None') : 'None'}`,
+          `${lang === 'ar' ? '📊 صفوف البيانات' : '📊 Data Rows'}: ${preview.length}`,
+          `${lang === 'ar' ? '📁 مجموعات البيانات المستوردة' : '📁 Imported Datasets'}: ${datasets.length}`,
+          `${lang === 'ar' ? '📏 القواعد المخصصة' : '📏 Custom Rules'}: ${customRules.length}`,
+          `${lang === 'ar' ? '📝 مسودة التقييم' : '📝 Feedback Draft'}: ${outputDraft.trim() ? `${outputDraft.trim().split(/\s+/).length} words` : 'Empty'}`,
+          '',
+          stats ? `${lang === 'ar' ? '🏫 الإحصائيات' : '🏫 Class Stats'}: ${stats.totalStudents} ${lang === 'ar' ? 'طالب' : 'students'}, ${stats.totalCourses} ${lang === 'ar' ? 'مقرر' : 'courses'}, ${lang === 'ar' ? 'المعدل' : 'Avg'}: ${stats.averageGrade}%` : '',
+          studentInsight ? `${lang === 'ar' ? '⚡ خطورة الطالب' : '⚡ Student Risk'}: ${studentInsight.riskLevel.toUpperCase()}` : '',
+        ].filter(Boolean);
+        appendAI(lines.join('\n'));
+        return true;
+      }
+
+      // ===== SYSTEM HELP =====
+      case 'system_help': {
+        appendAI(aiProcessor.getHelpText(lang));
+        return true;
+      }
+
+      default:
+        return false;
+    }
+  }, [
+    aiProcessor, appendAI, askModel, buildSmartReviewPrompt, customRules,
+    dataManager, extractStudentId, fetchPreview, outputDraft, preview,
+    readyCount, registry, reviewStudentData, runWorkflow, saveCustomTasks,
+    selectedRowData, selectedTask, stats, studentInsight, tasks, activeDatasetId,
+  ]);
+
   const sendChat = useCallback(async () => {
     const raw = chatInput.trim();
     if (!raw) return;
@@ -1397,6 +1914,44 @@ export default function DashboardPage() {
     setChatInput("");
     setAssistantBusy(true);
     try {
+      // === Phase 1: Check for inline data (CSV/JSON pasted directly) ===
+      const csvDetection = aiProcessor.detectInlineCSV(raw);
+      if (csvDetection.found) {
+        try {
+          const dataset = dataManager.parseCSV(csvDetection.data, { name: `Pasted CSV ${new Date().toLocaleTimeString()}` });
+          setImportedDatasets(dataManager.getAllDatasets());
+          setActiveDatasetId(dataset.id);
+          appendAI(`✅ CSV data detected and imported!\n- Records: ${dataset.metadata.rowCount}\n- Columns: ${dataset.headers.join(', ')}\n\n💡 Type "analyze data" for insights.`);
+          return;
+        } catch { /* fall through */ }
+      }
+      const jsonDetection = aiProcessor.detectInlineJSON(raw);
+      if (jsonDetection.found) {
+        try {
+          const dataset = dataManager.parseJSON(jsonDetection.data, { name: `Pasted JSON ${new Date().toLocaleTimeString()}` });
+          setImportedDatasets(dataManager.getAllDatasets());
+          setActiveDatasetId(dataset.id);
+          appendAI(`✅ JSON data detected and imported!\n- Records: ${dataset.metadata.rowCount}\n- Fields: ${dataset.headers.join(', ')}\n\n💡 Type "analyze data" for insights.`);
+          return;
+        } catch { /* fall through */ }
+      }
+
+      // === Phase 2: AI Command Parsing ===
+      const aiCommand = aiProcessor.parseCommand(raw);
+
+      // If high confidence and not general chat, try AI command first
+      if (aiCommand.type !== 'chat_general' && aiCommand.confidence > 0.7) {
+        const handled = await executeAICommand(aiCommand);
+        if (handled) {
+          if (!/(help|status|system)/.test(n)) {
+            const suggestions = getNextActionSuggestions();
+            if (suggestions.length) appendAI(`💡 ${aiCommand.language === 'ar' ? 'الأمر التالي' : 'Next'}: ${suggestions[0]}`);
+          }
+          return;
+        }
+      }
+
+      // === Phase 3: Legacy command matching ===
       const parts = splitCommandInput(raw);
       let handledCount = 0;
       for (const part of parts) {
@@ -1413,12 +1968,14 @@ export default function DashboardPage() {
         }
         return;
       }
+
+      // === Phase 4: AI general chat (with enhanced context) ===
       const reply = await askModel(raw);
-      appendAI(reply || 'Try "help commands" for full control.');
+      appendAI(reply || (aiCommand.language === 'ar' ? 'اكتب "مساعدة" لرؤية جميع الأوامر المتاحة.' : 'Try "help" for full system control commands.'));
     } finally {
       setAssistantBusy(false);
     }
-  }, [appendAI, askModel, chatInput, executeAssistantCommand, getNextActionSuggestions, splitCommandInput]);
+  }, [appendAI, aiProcessor, askModel, chatInput, dataManager, executeAICommand, executeAssistantCommand, getNextActionSuggestions, splitCommandInput]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2101,8 +2658,10 @@ export default function DashboardPage() {
                   </div>
                 ))}
               </div>
+              <input type="file" ref={fileInputRef} accept=".csv,.tsv,.json" onChange={handleFileUpload} className="hidden" />
               <div className="mt-2 flex gap-2">
-                <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void sendChat(); }} placeholder='Type "help commands" to control dashboard' className="flex-1 rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
+                <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void sendChat(); }} placeholder='Type "help" for full AI control' className="flex-1 rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
+                <button onClick={() => { setPendingFileAction('csv'); fileInputRef.current?.click(); }} title="Upload CSV/JSON" className="rounded bg-white/10 px-3 py-2 text-sm hover:bg-white/20"><FontAwesomeIcon icon={faFileUpload as any} /></button>
                 <button onClick={() => void sendChat()} disabled={assistantBusy} className="rounded bg-primary px-4 py-2 text-background-dark disabled:opacity-60"><FontAwesomeIcon icon={faPaperPlane as any} /></button>
               </div>
             </section>
@@ -2127,7 +2686,8 @@ export default function DashboardPage() {
           </div>
           <div className="border-t border-white/10 p-4">
             <div className="flex gap-2">
-              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void sendChat(); }} placeholder='Type "help commands" to control dashboard' className="flex-1 rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
+              <input value={chatInput} onChange={(e) => setChatInput(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") void sendChat(); }} placeholder='Type "help" for full AI control' className="flex-1 rounded border border-white/10 bg-black/30 px-3 py-2 text-sm" />
+              <button onClick={() => { setPendingFileAction('csv'); fileInputRef.current?.click(); }} title="Upload CSV/JSON" className="rounded bg-white/10 px-3 py-2 text-sm hover:bg-white/20"><FontAwesomeIcon icon={faFileUpload as any} /></button>
               <button onClick={() => void sendChat()} disabled={assistantBusy} className="rounded bg-primary px-4 py-2 text-background-dark disabled:opacity-60"><FontAwesomeIcon icon={faPaperPlane as any} /></button>
             </div>
           </div>

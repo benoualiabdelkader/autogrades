@@ -11,14 +11,13 @@
     },
     {
       "parameters": {
-        "operation": "executeQuery",
-        "query": "SELECT u.id as student_id, CONCAT(u.firstname, ' ', u.lastname) as student_name, a.name as assignment_name, s.id as submission_id, FROM_UNIXTIME(s.timemodified) as submission_date, s.status FROM mdl_user u JOIN mdl_assign_submission s ON u.id = s.userid JOIN mdl_assign a ON s.assignment = a.id ORDER BY s.timemodified DESC LIMIT 20",
-        "options": {}
+        "transformationType": "assignments",
+        "query": ""
       },
       "id": "fetch-submissions",
       "name": "Fetch Submissions",
-      "type": "n8n-nodes-base.mySql",
-      "typeVersion": 2.5,
+      "type": "n8n-nodes-base.extensionData",
+      "typeVersion": 1,
       "position": [450, 300]
     },
     {
@@ -40,7 +39,7 @@
         },
         "sendBody": true,
         "specifyBody": "json",
-        "jsonBody": "{ \"model\": \"qwen/qwen3-32b\", \"messages\": [ { \"role\": \"system\", \"content\": \"You are an expert grading assistant. Analyze student assignments and provide grades with feedback. Respond in English or French only. Return ONLY a JSON object with: grade (number 0-100), feedback_text (string), strengths (string), improvements (string).\" }, { \"role\": \"user\", \"content\": \"Grade assignment for student: {{ $json.student_name }}. Assignment: {{ $json.assignment_name }}. Submission ID: {{ $json.submission_id }}. Status: {{ $json.status }}.\" } ], \"temperature\": 0.3, \"response_format\": { \"type\": \"json_object\" } }",
+        "jsonBody": "{ \"model\": \"qwen/qwen3-32b\", \"messages\": [ { \"role\": \"system\", \"content\": \"You are an expert academic grading assistant specializing in comprehensive assignment evaluation.\\n\\nGrading Rubric:\\n- 90-100: ADVANCED - Excellent work demonstrating mastery\\n- 80-89: PROFICIENT - Strong understanding with minor areas to improve\\n- 70-79: DEVELOPING - Adequate work with clear areas for development\\n- 60-69: BEGINNING - Basic work with significant gaps\\n- Below 60: NEEDS IMPROVEMENT - Incomplete or incorrect\\n\\nProvide a detailed evaluation with:\\n1. Overall numeric grade (0-100)\\n2. Performance level (ADVANCED/PROFICIENT/DEVELOPING/BEGINNING/NEEDS_IMPROVEMENT)\\n3. Completion percentage (0-100)\\n4. Content quality score (0-100)\\n5. Clarity and organization score (0-100)\\n6. Specific strengths (2-3 points)\\n7. Specific improvements needed (2-3 points)\\n8. Recommended next steps\\n\\nRespond ONLY with valid JSON.\" }, { \"role\": \"user\", \"content\": \"Evaluate this assignment:\\nStudent: {{ $json.student_name }}\\nAssignment: {{ $json.assignment_name }}\\nSubmission Content: {{ $json.assignment_text }}\\n\\nProvide detailed assessment in JSON format with: {grade, performance_level, completion_percentage, content_quality, clarity_organization, strengths[], improvements[], recommended_actions[]}\" } ], \"temperature\": 0.4, \"response_format\": { \"type\": \"json_object\" } }",
         "options": {
           "timeout": 30000
         }
@@ -53,7 +52,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const response = $input.item.json.choices?.[0]?.message?.content; let grading; try { grading = JSON.parse(response); } catch (e) { grading = { grade: 75, feedback_text: 'Good work!', strengths: 'N/A', improvements: 'N/A' }; } return [{ json: { student_id: $('Fetch Submissions').item.json.student_id, student_name: $('Fetch Submissions').item.json.student_name, assignment_name: $('Fetch Submissions').item.json.assignment_name, grade: grading.grade, feedback_text: grading.feedback_text, strengths: grading.strengths, improvements: grading.improvements } }];"
+        "jsCode": "const response = $input.item.json.choices?.[0]?.message?.content; let grading; try { grading = JSON.parse(response); } catch (e) { grading = { grade: 0, performance_level: 'NEEDS_IMPROVEMENT', completion_percentage: 0, content_quality: 0, clarity_organization: 0, strengths: ['Submission was attempted'], improvements: ['Provide complete and detailed responses'], recommended_actions: ['Review assignment requirements and resubmit'] }; } return [{ json: { student_id: $('Fetch Submissions').item.json.student_id, student_name: $('Fetch Submissions').item.json.student_name || 'Unknown', assignment_name: $('Fetch Submissions').item.json.assignment_name || 'Assignment', submission_date: $('Fetch Submissions').item.json.submission_date || new Date().toISOString(), grade: Math.min(100, Math.max(0, grading.grade || 0)), performance_level: grading.performance_level || 'N/A', completion_percentage: grading.completion_percentage || 0, content_quality: grading.content_quality || 0, clarity_score: grading.clarity_organization || 0, strengths: Array.isArray(grading.strengths) ? grading.strengths.join(' | ') : String(grading.strengths || 'N/A'), improvements: Array.isArray(grading.improvements) ? grading.improvements.join(' | ') : String(grading.improvements || 'N/A'), recommended_actions: Array.isArray(grading.recommended_actions) ? grading.recommended_actions.join(' | ') : String(grading.recommended_actions || 'N/A'), submission_content: $('Fetch Submissions').item.json.assignment_text?.substring(0, 200) || '' } }];"
       },
       "id": "process-grade",
       "name": "Process Grade",

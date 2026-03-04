@@ -1,7 +1,12 @@
 /**
  * Workflow Engine - محرك بناء وتنفيذ Workflows تلقائياً
  * يقوم ببناء workflow لكل task بناءً على الوصف والـ prompt
+ * Enhanced with universal AI rubric system and advanced prompt generation
  */
+
+import { RubricSystem, RubricCriteria, ComprehensiveGradingResult } from '../ai/RubricSystem';
+import { AIPromptBuilder, GradingContext } from '../ai/AIPromptBuilder';
+import { WorkflowTemplateManager, WorkflowTemplate } from '../workflows/WorkflowTemplateManager';
 
 export interface GradingRule {
     id: string;
@@ -163,6 +168,10 @@ export class WorkflowEngine {
      */
     private shouldUseExtension(task: any): boolean {
         const text = `${task.title} ${task.description} ${task.prompt}`.toLowerCase();
+        // Always use extension for Grade Assignments task
+        if (task.id === 1 || text.includes('assign')) {
+            return true; // Default to extension for assignment grading
+        }
         return text.includes('extension') || text.includes('إضافة') || text.includes('scraper') || text.includes('استخراج');
     }
 
@@ -174,10 +183,46 @@ export class WorkflowEngine {
             case 'grading':
             case 'extension_analysis':
                 return [
-                    { id: 'accuracy', name: 'Scientific Accuracy', nameAr: 'الدقة العلمية', weight: 35, type: 'keyword', config: {} },
-                    { id: 'completeness', name: 'Completeness', nameAr: 'اكتمال الإجابة', weight: 25, type: 'completeness', config: { minLength: 20, idealLength: 150 } },
-                    { id: 'structure', name: 'Structure', nameAr: 'التنظيم والبنية', weight: 20, type: 'structure', config: { requireExamples: true } },
-                    { id: 'language', name: 'Language Quality', nameAr: 'جودة اللغة', weight: 20, type: 'length', config: { minLength: 10, idealLength: 200 } }
+                    { 
+                        id: 'content-accuracy', 
+                        name: 'Content Accuracy', 
+                        nameAr: 'دقة المحتوى', 
+                        weight: 25, 
+                        type: 'keyword', 
+                        config: { minLength: 10, description: 'Factual correctness and relevance' } 
+                    },
+                    { 
+                        id: 'completeness', 
+                        name: 'Completeness', 
+                        nameAr: 'اكتمال الإجابة', 
+                        weight: 25, 
+                        type: 'completeness', 
+                        config: { minLength: 20, idealLength: 200, description: 'Addresses all requirements' } 
+                    },
+                    { 
+                        id: 'organization', 
+                        name: 'Organization & Structure', 
+                        nameAr: 'التنظيم والبنية', 
+                        weight: 20, 
+                        type: 'structure', 
+                        config: { requireExamples: true, description: 'Clear logical flow and formatting' } 
+                    },
+                    { 
+                        id: 'clarity', 
+                        name: 'Clarity & Expression', 
+                        nameAr: 'الوضوح والتعبير', 
+                        weight: 15, 
+                        type: 'length', 
+                        config: { minLength: 15, idealLength: 250, description: 'Clear, well-articulated communication' } 
+                    },
+                    { 
+                        id: 'depth', 
+                        name: 'Depth of Analysis', 
+                        nameAr: 'عمق التحليل', 
+                        weight: 15, 
+                        type: 'keyword', 
+                        config: { description: 'Critical thinking and detailed explanation' } 
+                    }
                 ];
             case 'analytics':
                 return [
@@ -187,9 +232,9 @@ export class WorkflowEngine {
                 ];
             default:
                 return [
-                    { id: 'content', name: 'Content', nameAr: 'المحتوى', weight: 40, type: 'keyword', config: {} },
-                    { id: 'depth', name: 'Depth', nameAr: 'العمق', weight: 30, type: 'completeness', config: { minLength: 15, idealLength: 200 } },
-                    { id: 'presentation', name: 'Presentation', nameAr: 'العرض', weight: 30, type: 'length', config: { minLength: 5, idealLength: 150 } }
+                    { id: 'content', name: 'Content Quality', nameAr: 'جودة المحتوى', weight: 40, type: 'keyword', config: {} },
+                    { id: 'depth', name: 'Depth & Analysis', nameAr: 'العمق والتحليل', weight: 30, type: 'completeness', config: { minLength: 15, idealLength: 200 } },
+                    { id: 'presentation', name: 'Presentation & Clarity', nameAr: 'البيان والوضوح', weight: 30, type: 'length', config: { minLength: 5, idealLength: 150 } }
                 ];
         }
     }
@@ -286,35 +331,52 @@ export class WorkflowEngine {
     }
 
     /**
-     * Build enhanced AI prompt incorporating rules
+     * Build enhanced AI prompt with universal rubric system
+     * Uses advanced AI prompt builder with dynamic rubric generation
      */
-    private buildEnhancedPrompt(basePrompt: string, workflowType: string): string {
-        const rulesPrompt = `
-أنت خبير تقييم تعليمي محترف. حلل بيانات الطلاب وفق القواعد التالية:
+    private buildEnhancedPrompt(basePrompt: string, workflowType: string, task?: any): string {
+        // Determine assignment type from workflow
+        const assignmentType = this.determineAssignmentType(workflowType, task);
+        const courseLevel = task?.courseLevel || 'intermediate';
 
-1. الدقة العلمية (35%): تحقق من صحة المعلومات والمفاهيم
-2. اكتمال الإجابة (25%): تقييم شمولية الإجابة وتغطيتها للنقاط المطلوبة
-3. التنظيم والبنية (20%): جودة التنظيم والتسلسل المنطقي
-4. جودة اللغة (20%): سلامة اللغة والتعبير
+        // Generate appropriate rubric
+        const rubric = RubricSystem.generateRubric(
+            assignmentType as "custom" | "presentation" | "essay" | "project" | "practical" | "discussion" | "quiz",
+            courseLevel as 'introductory' | 'intermediate' | 'advanced'
+        );
 
-قدم تحليلاً شاملاً يتضمن:
-- الدرجة الإجمالية (0-100)
-- نقاط القوة والضعف
-- اقتراحات التحسين
-- تقييم كل معيار على حدة
+        // Build grading context
+        const context: GradingContext = {
+            assignmentType,
+            courseLevel: courseLevel as 'introductory' | 'intermediate' | 'advanced',
+            submissionType: 'text',
+            specialRequirements: task?.requirements || [],
+            rubricFocus: task?.rubricFocus || 'comprehensive'
+        };
 
-رد بصيغة JSON:
-{
-  "grade": رقم,
-  "feedback": "تعليق بالعربية",
-  "strengths": [],
-  "weaknesses": [],
-  "suggestions": [],
-  "ruleScores": {},
-  "analysis": "تحليل شامل"
-}`;
+        // Generate AI prompt with all enhancements
+        const enhancedPrompt = AIPromptBuilder.buildGradingPrompt(context);
 
-        return basePrompt ? `${basePrompt}\n\n${rulesPrompt}` : rulesPrompt;
+        return `${basePrompt}\n\n${enhancedPrompt}`;
+    }
+
+    /**
+     * Determine assignment type from workflow or task
+     */
+    private determineAssignmentType(workflowType: string, task?: any): string {
+        if (task?.assignmentType) return task.assignmentType;
+
+        const text = `${task?.title || ''} ${task?.description || ''} ${workflowType}`.toLowerCase();
+
+        if (text.includes('essay') || text.includes('paper')) return 'essay';
+        if (text.includes('project') || text.includes('assignment')) return 'project';
+        if (text.includes('presentation') || text.includes('slide')) return 'presentation';
+        if (text.includes('lab') || text.includes('practical')) return 'practical';
+        if (text.includes('discussion') || text.includes('forum')) return 'discussion';
+        if (text.includes('quiz') || text.includes('test')) return 'quiz';
+        if (text.includes('code') || text.includes('program')) return 'code';
+        
+        return 'custom';
     }
 
     /**
@@ -483,6 +545,7 @@ export class WorkflowEngine {
      */
     private async fetchExtensionData(config: any): Promise<any[]> {
         try {
+            console.log('📦 Attempting to fetch data from OnPage Scraper Extension...');
             const response = await fetch('/api/extension/query', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
@@ -492,13 +555,28 @@ export class WorkflowEngine {
             });
 
             const result = await response.json();
-            if (result.success && result.data) {
-                console.log(`✅ Fetched ${result.data.length} items from Extension`);
+            
+            if (!response.ok) {
+                console.warn('⚠️ Extension query returned error:', result.error);
+                return [];
+            }
+
+            if (result.success && result.data && Array.isArray(result.data)) {
+                console.log(`✅ Successfully fetched ${result.data.length} items from Extension`);
+                console.log('📋 Extension Data Metadata:', result.metadata);
+                
+                if (result.data.length === 0) {
+                    console.warn('⚠️ Extension data is empty. Make sure the OnPage Scraper Extension has extracted data from your course page.');
+                }
+                
                 return result.data;
             }
+            
+            console.warn('⚠️ Extension returned no data:', result.message);
             return [];
         } catch (error) {
-            console.error('Error fetching extension data:', error);
+            console.error('❌ Error fetching extension data:', error);
+            console.info('💡 Troubleshooting: Check if the OnPage Scraper Extension is installed and has extracted data');
             return [];
         }
     }
@@ -549,37 +627,69 @@ export class WorkflowEngine {
 
         switch (rule.type) {
             case 'keyword': {
+                if (len === 0) return 0;
                 if (rule.config?.requiredKeywords?.length) {
                     const found = rule.config.requiredKeywords.filter((kw: string) => normalized.includes(kw.toLowerCase()));
-                    return Math.round((found.length / rule.config.requiredKeywords.length) * 100);
+                    const keywordScore = (found.length / rule.config.requiredKeywords.length) * 60;
+                    const lengthBonus = Math.min(40, len / 5);
+                    return Math.round(keywordScore + lengthBonus);
                 }
-                return Math.min(100, len > 10 ? 55 + Math.min(45, len / 4) : (len > 0 ? 20 : 0));
+                // Evaluate based on content length and complexity
+                if (len < 5) return 5;
+                if (len < 20) return 20 + (len / 20) * 20;
+                if (len < 100) return 40 + (len / 100) * 40;
+                return Math.min(100, 80 + (len / 500) * 20);
             }
             case 'length': {
                 const min = rule.config?.minLength || 10;
                 const ideal = rule.config?.idealLength || 200;
                 if (len === 0) return 0;
-                if (len < min) return Math.round((len / min) * 40);
-                return Math.round(Math.max(60, 100 - Math.abs(len - ideal) / ideal * 40));
+                if (len < min) return Math.round((len / min) * 30);
+                if (len >= ideal) return 95 + Math.min(5, (len - ideal) / 100);
+                return Math.round(30 + ((len - min) / (ideal - min)) * 70);
             }
             case 'completeness': {
                 const min = rule.config?.minLength || 15;
                 const ideal = rule.config?.idealLength || 200;
                 const sentences = text.split(/[.!?،؟\n]+/).filter(s => s.trim().length > 3);
-                if (len >= ideal) return Math.min(100, 85 + sentences.length * 3);
-                if (len >= min) return 40 + Math.round(((len - min) / (ideal - min)) * 50);
-                return len > 0 ? Math.round((len / min) * 40) : 0;
+                const words = text.split(/\s+/).length;
+                
+                if (len === 0) return 0;
+                if (len < min) return Math.round((len / min) * 25);
+                
+                let score = 25 + ((len - min) / (ideal - min)) * 50;
+                score += Math.min(15, sentences.length * 3);
+                score += Math.min(10, (words / 50));
+                
+                return Math.min(100, Math.round(score));
             }
             case 'structure': {
+                if (len === 0) return 0;
                 const paragraphs = text.split(/\n\n+/).filter(p => p.trim().length > 5);
                 const sentences = text.split(/[.!?،؟\n]+/).filter(s => s.trim().length > 3);
-                const hasExamples = /مثال|مثلاً|على سبيل|example/i.test(text);
-                return Math.min(100, Math.round(40 + (paragraphs.length >= 2 ? 20 : 0) + (sentences.length >= 3 ? 15 : 0) + (hasExamples ? 15 : 0) + Math.min(10, len / 50)));
+                const hasExamples = /مثال|مثلاً|على سبيل|example|e\.g|for example|such as/i.test(text);
+                const hasLists = /[-•*]\s|^-|^\*/m.test(text);
+                const hasNumbers = /\d+/g.test(text);
+                
+                let score = 30;
+                score += paragraphs.length >= 2 ? 20 : (paragraphs.length === 1 ? 10 : 0);
+                score += sentences.length >= 3 ? 15 : (sentences.length >= 2 ? 8 : 0);
+                score += hasExamples ? 15 : 0;
+                score += hasLists ? 10 : 0;
+                score += hasNumbers ? 5 : 0;
+                score += Math.min(5, len / 100);
+                
+                return Math.min(100, Math.round(score));
             }
             case 'accuracy':
-                return len > 10 ? 60 + Math.min(30, len / 10) : (len > 0 ? 25 : 0);
+                if (len === 0) return 0;
+                let accuracy = len > 20 ? 50 : (len / 20) * 50;
+                accuracy += len > 100 ? 30 : (len / 100) * 30;
+                accuracy += /[A-Z]/.test(text) ? 10 : 0; // Has capitalization
+                accuracy += /[.!?]/.test(text) ? 10 : 0; // Has proper punctuation
+                return Math.min(100, Math.round(accuracy));
             default:
-                return 50;
+                return len === 0 ? 0 : Math.min(100, Math.round(30 + (len / 200) * 70));
         }
     }
 
@@ -637,13 +747,19 @@ export class WorkflowEngine {
     }
 
     /**
-     * Process single item with AI (enhanced with rules context)
+     * Process single item with AI (enhanced with rules context + privacy protection)
      */
     private async processItemWithAI(item: any, systemPrompt: string, workflow: WorkflowConfig): Promise<any> {
         try {
-            // Build enhanced user message with rules context
+            // ═══ PRIVACY SHIELD: Protect personal data before AI ═══
+            const { PrivacyShield } = await import('../protection/PrivacyShield');
+            const shield = new PrivacyShield({ autoDetectPII: true, strictMode: false });
+            const protection = shield.protect(item);
+            const safeItem = protection.sanitizedData;
+
+            // Build enhanced user message with rules context (using SAFE data)
             let userContent = '';
-            const ruleEval = item.rule_evaluation;
+            const ruleEval = safeItem.rule_evaluation;
             
             if (ruleEval) {
                 userContent += `تقييم أولي بالقواعد: ${ruleEval.ruleScore}/100\n`;
@@ -655,12 +771,12 @@ export class WorkflowEngine {
                 userContent += '\n';
             }
             
-            // Build item description  
-            const itemText = item.assignment_text || item.answer || item.value || '';
-            const studentName = item.student_name || item.studentName || '';
-            const questionText = item.question || item.questionText || '';
+            // Build item description from sanitized data
+            const itemText = safeItem.assignment_text || safeItem.answer || safeItem.value || '';
+            const studentToken = safeItem.student_name || safeItem.studentName || '';
+            const questionText = safeItem.question || safeItem.questionText || '';
             
-            if (studentName) userContent += `الطالب: ${studentName}\n`;
+            if (studentToken) userContent += `الطالب: ${studentToken}\n`;
             if (questionText) userContent += `السؤال: ${questionText}\n`;
             userContent += `الإجابة:\n${itemText}\n`;
             
@@ -697,15 +813,24 @@ export class WorkflowEngine {
             const jsonMatch = contentStr.match(/\{[\s\S]*\}/);
             const aiResponse = JSON.parse(jsonMatch ? jsonMatch[0] : contentStr);
 
+            // ═══ PRIVACY SHIELD: Restore personal data in AI response ═══
+            const restoredAiResponse = protection.restoreObject(aiResponse);
+
             // Blend AI score with rule score if available
             const blendedResult: any = {
-                ...item,
-                ai_result: aiResponse,
+                ...item, // Use ORIGINAL item (with real personal data)
+                ai_result: restoredAiResponse,
+                _privacyProtected: true,
+                _privacyStats: {
+                  piiTokenized: protection.tokenCount,
+                  fieldsProtected: protection.summary.fieldsTokenized,
+                },
             };
             
-            if (ruleEval && aiResponse.grade) {
+            if (ruleEval && (restoredAiResponse.grade || aiResponse.grade)) {
+                const aiGrade = restoredAiResponse.grade || aiResponse.grade;
                 blendedResult.blended_score = Math.round(
-                    aiResponse.grade * 0.6 + ruleEval.ruleScore * 0.4
+                    aiGrade * 0.6 + ruleEval.ruleScore * 0.4
                 );
             }
 
@@ -752,9 +877,44 @@ export class WorkflowEngine {
     private exportToCSV(data: any[], filename: string): any {
         if (!data || data.length === 0) return { downloadUrl: null };
 
-        const headers = Object.keys(data[0]);
+        // Define preferred column order for grading results
+        const columnOrder = [
+            'student_id',
+            'student_name',
+            'assignment_name',
+            'grade',
+            'performance_level',
+            'completion_percentage',
+            'content_quality',
+            'clarity_score',
+            'strengths',
+            'improvements',
+            'recommended_actions',
+            'submission_date',
+            'submission_content'
+        ];
+
+        // Get all keys from data, prioritize by columnOrder
+        const allKeys = new Set<string>();
+        data.forEach(item => Object.keys(item).forEach(k => allKeys.add(k)));
+        
+        const headers = [
+            ...columnOrder.filter(col => allKeys.has(col)),
+            ...Array.from(allKeys).filter(key => !columnOrder.includes(key))
+        ];
+
+        const escapeCSV = (value: any): string => {
+            if (value === null || value === undefined) return '';
+            const str = String(value);
+            // Escape quotes and wrap in quotes if contains comma, newline, or quotes
+            if (str.includes(',') || str.includes('\n') || str.includes('"')) {
+                return `"${str.replace(/"/g, '""')}"`;
+            }
+            return str;
+        };
+
         const rows = data.map(item => 
-            headers.map(header => `"${item[header] || ''}"`).join(',')
+            headers.map(header => escapeCSV(item[header])).join(',')
         );
 
         const csv = [headers.join(','), ...rows].join('\n');
@@ -762,12 +922,14 @@ export class WorkflowEngine {
         const url = URL.createObjectURL(blob);
 
         // Auto download
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = `${filename}.csv`;
-        link.click();
+        if (typeof document !== 'undefined') {
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = `${filename}.csv`;
+            link.click();
+        }
 
-        return { downloadUrl: url, data };
+        return { downloadUrl: url, data, headers, rowCount: data.length };
     }
 
     /**

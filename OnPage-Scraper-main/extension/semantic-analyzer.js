@@ -1,3 +1,7 @@
+(function() {
+if (window.__loaded_SemanticAnalyzer) return;
+window.__loaded_SemanticAnalyzer = true;
+
 /**
  * Semantic & Structure-Based Analyzer
  * محلل دلالي وهيكلي متقدم للصفحات
@@ -1204,3 +1208,4 @@ class SemanticAnalyzer {
 
 // تصدير للاستخدام العام
 window.SemanticAnalyzer = SemanticAnalyzer;
+})();

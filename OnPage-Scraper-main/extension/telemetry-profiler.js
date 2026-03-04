@@ -1,3 +1,7 @@
+(function() {
+if (window.__loaded_TelemetryProfiler) return;
+window.__loaded_TelemetryProfiler = true;
+
 /**
  * Telemetry & Profiling System
  * نظام القياسات الذكية وتحليل الأداء
@@ -525,3 +529,4 @@ class TelemetryProfiler {
 
 // تصدير للاستخدام العام
 window.TelemetryProfiler = TelemetryProfiler;
+})();

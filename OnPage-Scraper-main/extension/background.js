@@ -201,4 +201,8 @@ class BackgroundService {
 }
 
 // Initialize background service
-const backgroundService = new BackgroundService();
+// Wrapped to prevent duplicate init when loaded via importScripts
+if (typeof self._backgroundServiceInitialized === 'undefined') {
+    self._backgroundServiceInitialized = true;
+    const backgroundService = new BackgroundService();
+}

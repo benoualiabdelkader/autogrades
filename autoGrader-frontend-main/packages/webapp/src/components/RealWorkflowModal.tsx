@@ -307,15 +307,17 @@ export default function RealWorkflowModal({
                                         </div>
                                         <h3 className="text-xl font-bold text-yellow-500 mb-2">No Data Found</h3>
                                         <p className="text-muted-foreground mb-3">
-                                            Workflow executed successfully, but the database query returned 0 rows.
+                                            Workflow executed successfully, but no data was available from the OnPage Scraper Extension.
                                         </p>
                                         <div className="bg-yellow-500/10 border border-yellow-500/20 rounded-xl p-4 text-left text-sm">
                                             <p className="font-bold text-yellow-500 mb-2">💡 Troubleshooting Tips:</p>
                                             <ul className="space-y-1 text-muted-foreground">
-                                                <li>• Check if your Moodle database is populated with data</li>
-                                                <li>• Verify the database connection (127.0.0.1:3307)</li>
-                                                <li>• Ensure required tables exist (mdl_user, mdl_assign, etc.)</li>
-                                                <li>• Try running a simpler query first to test connectivity</li>
+                                                <li>• Ensure the OnPage Scraper Extension is installed and enabled</li>
+                                                <li>• Extract data from your course page using the extension</li>
+                                                <li>• The extension will automatically send extracted assignments to the dashboard</li>
+                                                <li>• Check the extension's popup for data extraction status</li>
+                                                <li>• Navigate to your course's assignment page and extract data before running the workflow</li>
+                                                <li>• Try refreshing the page and running the workflow again</li>
                                             </ul>
                                         </div>
                                     </>

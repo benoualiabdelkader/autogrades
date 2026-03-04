@@ -1,3 +1,7 @@
+(function() {
+if (window.__loaded_SmartExtractor) return;
+window.__loaded_SmartExtractor = true;
+
 /**
  * Smart DOM-Based Data Extractor
  * محرك استخراج ذكي للبيانات من DOM
@@ -1005,3 +1009,4 @@ class SmartExtractor {
 
 // تصدير للاستخدام العام
 window.SmartExtractor = SmartExtractor;
+})();

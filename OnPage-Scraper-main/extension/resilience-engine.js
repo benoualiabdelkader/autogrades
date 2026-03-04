@@ -1,3 +1,7 @@
+(function() {
+if (window.__loaded_ResilienceEngine) return;
+window.__loaded_ResilienceEngine = true;
+
 /**
  * Resilience Engine - محرك المرونة والإصلاح الذاتي
  * يتعامل مع تغييرات المواقع ويصلح Selectors تلقائياً
@@ -986,3 +990,4 @@ class ResilienceEngine {
 
 // تصدير للاستخدام العام
 window.ResilienceEngine = ResilienceEngine;
+})();

@@ -68,6 +68,24 @@ async function handler(
       count: Array.isArray(rows) ? rows.length : 0
     });
   } catch (error: any) {
+    const isConnectionError =
+      error?.code === 'ECONNREFUSED' ||
+      error?.code === 'ETIMEDOUT' ||
+      error?.code === 'ENOTFOUND' ||
+      error?.errno === -4078;
+
+    if (isConnectionError) {
+      // Database unreachable — return 200 with clear error code so frontend
+      // can detect "DB offline" without a noisy 500 in the console.
+      return res.status(200).json({
+        success: false,
+        error: 'Database not available. Start MySQL or check connection settings.',
+        errorCode: 'DB_UNAVAILABLE',
+        data: [],
+        count: 0,
+      });
+    }
+
     console.error('Database query error:', error);
     logDatabaseQuery(req, query, false, error?.message);
     return res.status(500).json({

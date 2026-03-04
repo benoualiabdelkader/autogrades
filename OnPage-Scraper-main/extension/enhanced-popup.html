@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="ar" dir="rtl">
+<html lang="en" dir="ltr">
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AutoGrader Smart Scraper</title>
+    <title>AutoGrader Universal Scraper</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="enhanced-popup.css">
@@ -27,16 +27,23 @@
                 </div>
                 <div class="logo-text">
                     <h1>AutoGrader Scraper</h1>
-                    <p class="subtitle">استخراج ذكي للبيانات</p>
+                    <p class="subtitle">Universal Data Extraction</p>
                 </div>
             </div>
             <div class="header-right">
                 <div class="connection-badge" id="connectionStatus">
                     <span class="status-dot" id="statusDot"></span>
-                    <span class="status-text" id="statusText">جاري الفحص...</span>
+                    <span class="status-text" id="statusText">Checking...</span>
                 </div>
             </div>
         </header>
+
+        <!-- Platform Detection Bar -->
+        <div class="platform-bar" id="platformBar">
+            <span class="platform-icon" id="platformIcon">&#127760;</span>
+            <span class="platform-name" id="platformName">Detecting site...</span>
+            <span class="platform-type-badge" id="platformType"></span>
+        </div>
 
         <!-- Tab Navigation -->
         <nav class="tab-nav">
@@ -44,21 +51,25 @@
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10 2L3 7v11h14V7L10 2zm0 2.5l5 3.5v9H5v-9l5-3.5z" />
                 </svg>
-                الاستخراج
+                Extract
+            </button>
+            <button class="tab-btn" id="tabMultiPage" data-tab="multiPage">
+                <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z" />
+                </svg>
+                Multi-Page
             </button>
             <button class="tab-btn" id="tabHistory" data-tab="history">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                        d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm.5 9H9V5h1.5v6zm0 3H9v-1.5h1.5V14z" />
+                    <path d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm.5 9H9V5h1.5v6zm0 3H9v-1.5h1.5V14z" />
                 </svg>
-                السجل
+                History
             </button>
             <button class="tab-btn" id="tabSettings" data-tab="settings">
                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                    <path
-                        d="M17.5 11.5h-.9a6.6 6.6 0 0 0-.6-1.5l.6-.6a.5.5 0 0 0 0-.7l-1.3-1.3a.5.5 0 0 0-.7 0l-.6.6a6.6 6.6 0 0 0-1.5-.6v-.9a.5.5 0 0 0-.5-.5h-1.5a.5.5 0 0 0-.5.5v.9c-.5.1-1 .3-1.5.6l-.6-.6a.5.5 0 0 0-.7 0L6.2 9.2a.5.5 0 0 0 0 .7l.6.6c-.3.5-.5 1-.6 1.5h-.9a.5.5 0 0 0-.5.5V13a.5.5 0 0 0 .5.5h.9c.1.5.3 1 .6 1.5l-.6.6a.5.5 0 0 0 0 .7l1.3 1.3c.2.2.5.2.7 0l.6-.6c.5.3 1 .5 1.5.6v.9c0 .3.2.5.5.5H11a.5.5 0 0 0 .5-.5v-.9c.5-.1 1-.3 1.5-.6l.6.6c.2.2.5.2.7 0l1.3-1.3a.5.5 0 0 0 0-.7l-.6-.6c.3-.5.5-1 .6-1.5h.9a.5.5 0 0 0 .5-.5v-1.5a.5.5 0 0 0-.5-.5zM10 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
+                    <path d="M17.5 11.5h-.9a6.6 6.6 0 0 0-.6-1.5l.6-.6a.5.5 0 0 0 0-.7l-1.3-1.3a.5.5 0 0 0-.7 0l-.6.6a6.6 6.6 0 0 0-1.5-.6v-.9a.5.5 0 0 0-.5-.5h-1.5a.5.5 0 0 0-.5.5v.9c-.5.1-1 .3-1.5.6l-.6-.6a.5.5 0 0 0-.7 0L6.2 9.2a.5.5 0 0 0 0 .7l.6.6c-.3.5-.5 1-.6 1.5h-.9a.5.5 0 0 0-.5.5V13a.5.5 0 0 0 .5.5h.9c.1.5.3 1 .6 1.5l-.6.6a.5.5 0 0 0 0 .7l1.3 1.3c.2.2.5.2.7 0l.6-.6c.5.3 1 .5 1.5.6v.9c0 .3.2.5.5.5H11a.5.5 0 0 0 .5-.5v-.9c.5-.1 1-.3 1.5-.6l.6.6c.2.2.5.2.7 0l1.3-1.3a.5.5 0 0 0 0-.7l-.6-.6c.3-.5.5-1 .6-1.5h.9a.5.5 0 0 0 .5-.5v-1.5a.5.5 0 0 0-.5-.5zM10 14a2 2 0 1 1 0-4 2 2 0 0 1 0 4z" />
                 </svg>
-                الإعدادات
+                Settings
             </button>
         </nav>
 
@@ -73,8 +84,8 @@
                     <div class="card-header">
                         <div class="step-badge">1</div>
                         <div class="card-title-group">
-                            <h2>تحديد العناصر</h2>
-                            <span class="card-desc">اختر عناصر الصفحة أو استخدم الاستخراج التلقائي</span>
+                            <h2>Select Elements</h2>
+                            <span class="card-desc">Choose page elements or use smart auto-extract</span>
                         </div>
                     </div>
                     <div class="card-body">
@@ -83,15 +94,25 @@
                                 <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
                                     <path d="M10 3L3 10L10 17L17 10L10 3Z" />
                                 </svg>
-                                تحديد يدوي
+                                Manual Select
                             </button>
                             <button class="btn btn-secondary" id="autoSelectBtn">
                                 <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
-                                    <path
-                                        d="M10 2C5.58 2 2 5.58 2 10C2 14.42 5.58 18 10 18C14.42 18 18 14.42 18 10C18 5.58 14.42 2 10 2ZM10 16C6.69 16 4 13.31 4 10C4 6.69 6.69 4 10 4C13.31 4 16 6.69 16 10C16 13.31 13.31 16 10 16Z" />
+                                    <path d="M10 2C5.58 2 2 5.58 2 10C2 14.42 5.58 18 10 18C14.42 18 18 14.42 18 10C18 5.58 14.42 2 10 2ZM10 16C6.69 16 4 13.31 4 10C4 6.69 6.69 4 10 4C13.31 4 16 6.69 16 10C16 13.31 13.31 16 10 16Z" />
                                 </svg>
-                                استخراج تلقائي
+                                Smart Extract
                             </button>
+                        </div>
+
+                        <!-- Login Detection Alert -->
+                        <div class="login-alert" id="loginAlert" style="display: none;">
+                            <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                                <path d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H9v-2h2v2zm0-4H9V5h2v6z" />
+                            </svg>
+                            <div class="login-alert-content">
+                                <strong id="loginAlertTitle">Login Required</strong>
+                                <p id="loginAlertDesc">Login form detected. Sign in first for full access.</p>
+                            </div>
                         </div>
 
                         <!-- Selected Elements List -->
@@ -99,14 +120,14 @@
                             <div class="list-header">
                                 <div class="list-header-left">
                                     <span class="count-badge" id="elementsCount">0</span>
-                                    <span class="list-label">عنصر محدد</span>
+                                    <span class="list-label">elements selected</span>
                                 </div>
-                                <button class="btn-icon danger" id="clearElementsBtn" title="مسح الكل">
+                                <button class="btn-icon danger" id="clearElementsBtn" title="Clear all">
                                     <svg width="14" height="14" viewBox="0 0 16 16" fill="currentColor">
                                         <path d="M2 4h12M6 4V2h4v2M4 4v10h8V4H4zm3 3v5M9 7v5" stroke="currentColor"
                                             stroke-width="1.5" fill="none" stroke-linecap="round" />
                                     </svg>
-                                    مسح الكل
+                                    Clear All
                                 </button>
                             </div>
                             <ul class="elements-list" id="elementsList"></ul>
@@ -119,8 +140,8 @@
                     <div class="card-header">
                         <div class="step-badge">2</div>
                         <div class="card-title-group">
-                            <h2>خيارات الاستخراج</h2>
-                            <span class="card-desc">خصّص عملية الاستخراج</span>
+                            <h2>Extraction Options</h2>
+                            <span class="card-desc">Customize the extraction process</span>
                         </div>
                     </div>
                     <div class="card-body">
@@ -128,22 +149,22 @@
                             <label class="checkbox-label">
                                 <input type="checkbox" id="cleanDataOption" checked>
                                 <span class="checkmark"></span>
-                                <span>تنظيف البيانات</span>
+                                <span>Clean data</span>
                             </label>
                             <label class="checkbox-label">
                                 <input type="checkbox" id="removeDuplicatesOption" checked>
                                 <span class="checkmark"></span>
-                                <span>إزالة التكرارات</span>
+                                <span>Remove duplicates</span>
                             </label>
                             <label class="checkbox-label">
                                 <input type="checkbox" id="validateDataOption" checked>
                                 <span class="checkmark"></span>
-                                <span>التحقق من البيانات</span>
+                                <span>Validate data</span>
                             </label>
                             <label class="checkbox-label">
                                 <input type="checkbox" id="includeMetadataOption">
                                 <span class="checkmark"></span>
-                                <span>تضمين البيانات الوصفية</span>
+                                <span>Include metadata</span>
                             </label>
                         </div>
                     </div>
@@ -154,8 +175,8 @@
                     <div class="card-header">
                         <div class="step-badge">3</div>
                         <div class="card-title-group">
-                            <h2>استخراج وإرسال</h2>
-                            <span class="card-desc">أرسل البيانات إلى AutoGrader</span>
+                            <h2>Extract & Send</h2>
+                            <span class="card-desc">Send extracted data to AutoGrader</span>
                         </div>
                     </div>
                     <div class="card-body">
@@ -164,16 +185,15 @@
                                 stroke-width="2">
                                 <path d="M22 2L11 13M22 2L15 22L11 13M11 13L2 9L22 2" />
                             </svg>
-                            استخراج وإرسال إلى AutoGrader
+                            Extract & Send to AutoGrader
                         </button>
 
                         <div class="secondary-actions">
                             <button class="btn btn-outline btn-sm" id="previewBtn" disabled>
                                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                                    <path
-                                        d="M10 4C5 4 1.73 7.11 1 10C1.73 12.89 5 16 10 16C15 16 18.27 12.89 19 10C18.27 7.11 15 4 10 4ZM10 14C7.24 14 5 11.76 5 10C5 8.24 7.24 6 10 6C12.76 6 15 8.24 15 10C15 11.76 12.76 14 10 14ZM10 8C8.9 8 8 8.9 8 10C8 11.1 8.9 12 10 12C11.1 12 12 11.1 12 10C12 8.9 11.1 8 10 8Z" />
+                                    <path d="M10 4C5 4 1.73 7.11 1 10C1.73 12.89 5 16 10 16C15 16 18.27 12.89 19 10C18.27 7.11 15 4 10 4ZM10 14C7.24 14 5 11.76 5 10C5 8.24 7.24 6 10 6C12.76 6 15 8.24 15 10C15 11.76 12.76 14 10 14ZM10 8C8.9 8 8 8.9 8 10C8 11.1 8.9 12 10 12C11.1 12 12 11.1 12 10C12 8.9 11.1 8 10 8Z" />
                                 </svg>
-                                معاينة
+                                Preview
                             </button>
                             <button class="btn btn-outline btn-sm" id="exportJsonBtn" disabled>
                                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
@@ -183,8 +203,7 @@
                             </button>
                             <button class="btn btn-outline btn-sm" id="exportCsvBtn" disabled>
                                 <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                                    <path
-                                        d="M17 12V17H3V12H1V17C1 18.1 1.9 19 3 19H17C18.1 19 19 18.1 19 17V12H17ZM10 15L15 10H12V3H8V10H5L10 15Z" />
+                                    <path d="M17 12V17H3V12H1V17C1 18.1 1.9 19 3 19H17C18.1 19 19 18.1 19 17V12H17ZM10 15L15 10H12V3H8V10H5L10 15Z" />
                                 </svg>
                                 CSV
                             </button>
@@ -193,7 +212,7 @@
                         <!-- Progress Bar -->
                         <div class="progress-container" id="progressContainer" style="display: none;">
                             <div class="progress-header">
-                                <span class="progress-text" id="progressText">جاري الاستخراج...</span>
+                                <span class="progress-text" id="progressText">Extracting...</span>
                                 <span class="progress-percent" id="progressPercent">0%</span>
                             </div>
                             <div class="progress-bar">
@@ -205,20 +224,110 @@
                         <div class="stats-row" id="extractionStats" style="display: none;">
                             <div class="stat-chip" id="statFields">
                                 <span class="stat-value">0</span>
-                                <span class="stat-label">حقل</span>
+                                <span class="stat-label">Fields</span>
                             </div>
                             <div class="stat-chip" id="statEntities">
                                 <span class="stat-value">0</span>
-                                <span class="stat-label">كيان</span>
+                                <span class="stat-label">Entities</span>
                             </div>
                             <div class="stat-chip" id="statForms">
                                 <span class="stat-value">0</span>
-                                <span class="stat-label">نموذج</span>
+                                <span class="stat-label">Forms</span>
                             </div>
                             <div class="stat-chip" id="statTables">
                                 <span class="stat-value">0</span>
-                                <span class="stat-label">جدول</span>
+                                <span class="stat-label">Tables</span>
                             </div>
+                        </div>
+                    </div>
+                </section>
+            </div>
+
+            <!-- ===== MULTI-PAGE TAB ===== -->
+            <div class="tab-panel" id="panelMultiPage">
+                <section class="card">
+                    <div class="card-header">
+                        <h2>Multi-Page Scraping</h2>
+                        <span class="card-desc">Crawl multiple pages and follow links automatically</span>
+                    </div>
+                    <div class="card-body">
+                        <!-- Crawl Mode -->
+                        <div class="form-group">
+                            <label for="crawlMode">Crawl Mode</label>
+                            <select id="crawlMode" class="input">
+                                <option value="pagination">Follow Pagination (Next/Prev)</option>
+                                <option value="links">Follow Links by Pattern</option>
+                                <option value="sitemap">Full Site Crawl</option>
+                            </select>
+                        </div>
+
+                        <!-- Link Pattern (shown when mode = links) -->
+                        <div class="form-group" id="linkPatternGroup">
+                            <label for="linkPattern">Link Pattern (regex)</label>
+                            <input type="text" id="linkPattern" class="input" placeholder="e.g. /course/view\\.php.*">
+                            <span class="form-hint">Only links matching this pattern will be followed</span>
+                        </div>
+
+                        <!-- Max Pages -->
+                        <div class="form-group">
+                            <label for="maxPages">Maximum Pages</label>
+                            <select id="maxPages" class="input">
+                                <option value="5">5 pages</option>
+                                <option value="10" selected>10 pages</option>
+                                <option value="25">25 pages</option>
+                                <option value="50">50 pages</option>
+                                <option value="100">100 pages</option>
+                            </select>
+                        </div>
+
+                        <!-- Request Delay -->
+                        <div class="form-group">
+                            <label for="requestDelay">Delay Between Pages (ms)</label>
+                            <select id="requestDelay" class="input">
+                                <option value="500">500ms (Fast)</option>
+                                <option value="1500" selected>1500ms (Normal)</option>
+                                <option value="3000">3000ms (Careful)</option>
+                                <option value="5000">5000ms (Stealth)</option>
+                            </select>
+                        </div>
+
+                        <!-- Stealth Options -->
+                        <div class="options-grid" style="margin-top: 12px;">
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="stealthModeOption" checked>
+                                <span class="checkmark"></span>
+                                <span>Stealth mode</span>
+                            </label>
+                            <label class="checkbox-label">
+                                <input type="checkbox" id="humanSimOption" checked>
+                                <span class="checkmark"></span>
+                                <span>Human simulation</span>
+                            </label>
+                        </div>
+
+                        <!-- Multi-page Progress -->
+                        <div class="multi-progress" id="multiProgress" style="display: none;">
+                            <div class="multi-progress-header">
+                                <span id="multiProgressLabel">Crawling...</span>
+                                <span id="multiProgressCount">0 / 0 pages</span>
+                            </div>
+                            <div class="progress-bar">
+                                <div class="progress-fill" id="multiProgressFill"></div>
+                            </div>
+                            <div class="crawl-log" id="crawlLog"></div>
+                        </div>
+
+                        <!-- Actions -->
+                        <div class="button-group" style="margin-top: 16px;">
+                            <button class="btn btn-primary btn-large" id="startCrawlBtn">
+                                <svg width="16" height="16" viewBox="0 0 20 20" fill="currentColor">
+                                    <path d="M3 3h6v6H3zM11 3h6v6h-6zM3 11h6v6H3zM11 11h6v6h-6z" />
+                                </svg>
+                                Start Multi-Page Scrape
+                            </button>
+                            <button class="btn btn-danger btn-sm" id="stopCrawlBtn" style="display: none;">
+                                Stop
+                            </button>
                         </div>
                     </div>
                 </section>
@@ -227,8 +336,8 @@
             <!-- ===== HISTORY TAB ===== -->
             <div class="tab-panel" id="panelHistory">
                 <div class="history-header">
-                    <h3>سجل الاستخراجات</h3>
-                    <button class="btn btn-outline btn-sm" id="clearHistoryBtn">مسح السجل</button>
+                    <h3>Extraction History</h3>
+                    <button class="btn btn-outline btn-sm" id="clearHistoryBtn">Clear History</button>
                 </div>
                 <div class="history-list" id="historyList">
                     <div class="empty-state">
@@ -237,7 +346,7 @@
                             <circle cx="12" cy="12" r="10" />
                             <path d="M12 8v4M12 16h.01" />
                         </svg>
-                        <p>لا يوجد سجل استخراجات بعد</p>
+                        <p>No extraction history yet</p>
                     </div>
                 </div>
             </div>
@@ -246,20 +355,19 @@
             <div class="tab-panel" id="panelSettings">
                 <section class="card">
                     <div class="card-header">
-                        <h2>إعدادات الاتصال</h2>
+                        <h2>Connection Settings</h2>
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label for="autoGraderUrl">عنوان AutoGrader Dashboard</label>
+                            <label for="autoGraderUrl">AutoGrader Dashboard URL</label>
                             <div class="input-with-btn">
-                                <input type="url" id="autoGraderUrl" class="input" value="http://localhost:5173"
-                                    placeholder="http://localhost:5173">
+                                <input type="url" id="autoGraderUrl" class="input" value="http://localhost:3000"
+                                    placeholder="http://localhost:3000">
                                 <button class="btn btn-primary btn-sm" id="testConnectionBtn">
                                     <svg width="14" height="14" viewBox="0 0 20 20" fill="currentColor">
-                                        <path
-                                            d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H9v-2h2v2zm0-4H9V5h2v6z" />
+                                        <path d="M10 2C5.58 2 2 5.58 2 10s3.58 8 8 8 8-3.58 8-8-3.58-8-8-8zm1 13H9v-2h2v2zm0-4H9V5h2v6z" />
                                     </svg>
-                                    اختبار
+                                    Test
                                 </button>
                             </div>
                         </div>
@@ -268,41 +376,65 @@
 
                 <section class="card">
                     <div class="card-header">
-                        <h2>خيارات متقدمة</h2>
+                        <h2>Advanced Options</h2>
                     </div>
                     <div class="card-body">
                         <div class="form-group">
-                            <label for="maxRetries">عدد محاولات إعادة الإرسال</label>
+                            <label for="maxRetries">Send Retry Attempts</label>
                             <select id="maxRetries" class="input">
-                                <option value="1">1 محاولة</option>
-                                <option value="3" selected>3 محاولات</option>
-                                <option value="5">5 محاولات</option>
+                                <option value="1">1 attempt</option>
+                                <option value="3" selected>3 attempts</option>
+                                <option value="5">5 attempts</option>
                             </select>
                         </div>
                         <div class="form-group">
-                            <label for="extractionTimeout">مهلة الاستخراج (ثانية)</label>
+                            <label for="extractionTimeout">Extraction Timeout (seconds)</label>
                             <select id="extractionTimeout" class="input">
-                                <option value="15">15 ثانية</option>
-                                <option value="30" selected>30 ثانية</option>
-                                <option value="60">60 ثانية</option>
+                                <option value="15">15 seconds</option>
+                                <option value="30" selected>30 seconds</option>
+                                <option value="60">60 seconds</option>
+                                <option value="120">120 seconds</option>
                             </select>
                         </div>
                         <label class="checkbox-label">
                             <input type="checkbox" id="autoSaveOption" checked>
                             <span class="checkmark"></span>
-                            <span>حفظ نسخة احتياطية تلقائياً</span>
+                            <span>Auto-save backup locally</span>
                         </label>
                         <label class="checkbox-label" style="margin-top: 8px;">
                             <input type="checkbox" id="notificationsOption" checked>
                             <span class="checkmark"></span>
-                            <span>إشعارات الإرسال</span>
+                            <span>Send notifications</span>
                         </label>
                     </div>
                 </section>
 
                 <section class="card">
                     <div class="card-header">
-                        <h2>حول الإضافة</h2>
+                        <h2>Stealth & Anti-Detection</h2>
+                    </div>
+                    <div class="card-body">
+                        <label class="checkbox-label">
+                            <input type="checkbox" id="globalStealthOption" checked>
+                            <span class="checkmark"></span>
+                            <span>Enable stealth patches (hide automation signals)</span>
+                        </label>
+                        <label class="checkbox-label" style="margin-top: 8px;">
+                            <input type="checkbox" id="canvasNoiseOption" checked>
+                            <span class="checkmark"></span>
+                            <span>Canvas fingerprint noise</span>
+                        </label>
+                        <label class="checkbox-label" style="margin-top: 8px;">
+                            <input type="checkbox" id="sessionPersistOption" checked>
+                            <span class="checkmark"></span>
+                            <span>Persist login sessions across pages</span>
+                        </label>
+                    </div>
+                </section>
+
+                <section class="card">
+                    <div class="card-header">
+                        <h2>About</h2>
                     </div>
                     <div class="card-body about-section">
                         <div class="about-logo">
@@ -312,11 +444,11 @@
                                 <path d="M16 16L22 21L16 26L10 21L16 16Z" fill="white" opacity="0.65" />
                             </svg>
                             <div>
-                                <strong>AutoGrader Smart Scraper</strong>
-                                <span class="version-badge">v2.1.0</span>
+                                <strong>AutoGrader Universal Scraper</strong>
+                                <span class="version-badge">v3.0.0</span>
                             </div>
                         </div>
-                        <p class="about-desc">أداة استخراج بيانات ذكية مدعومة بالتحليل الدلالي ومحرك المرونة.</p>
+                        <p class="about-desc">Intelligent universal data extraction with platform auto-detection, stealth browsing, multi-page crawling, and semantic analysis.</p>
                     </div>
                 </section>
             </div>
@@ -326,10 +458,10 @@
         <footer class="footer">
             <div class="footer-inner">
                 <span>AutoGrader AI</span>
-                <span class="footer-sep">•</span>
-                <span>v2.1.0</span>
-                <span class="footer-sep">•</span>
-                <span id="footerExtractionCount">0 عملية استخراج</span>
+                <span class="footer-sep">&bull;</span>
+                <span>v3.0.0</span>
+                <span class="footer-sep">&bull;</span>
+                <span id="footerExtractionCount">0 extractions</span>
             </div>
         </footer>
     </div>
@@ -338,7 +470,7 @@
     <div class="modal-overlay" id="previewModal" style="display: none;">
         <div class="modal-card">
             <div class="modal-header">
-                <h3>معاينة البيانات المستخرجة</h3>
+                <h3>Preview Extracted Data</h3>
                 <button class="btn-icon" id="closePreviewBtn">
                     <svg width="18" height="18" viewBox="0 0 20 20" fill="currentColor">
                         <path d="M4.5 4.5L15.5 15.5M15.5 4.5L4.5 15.5" stroke="currentColor" stroke-width="2"
@@ -351,18 +483,21 @@
                 <div class="preview-data-box" id="previewData"></div>
             </div>
             <div class="modal-footer">
-                <button class="btn btn-outline" id="cancelPreviewBtn">إلغاء</button>
+                <button class="btn btn-outline" id="cancelPreviewBtn">Cancel</button>
                 <button class="btn btn-success" id="confirmSendBtn">
                     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                         <path d="M22 2L11 13M22 2L15 22L11 13M11 13L2 9L22 2" />
                     </svg>
-                    إرسال إلى AutoGrader
+                    Send to AutoGrader
                 </button>
             </div>
         </div>
     </div>
 
-    <!-- Scripts -->
+    <!-- Scripts: core engines first, then support modules, then popup controller -->
+    <script src="core/SiteDetector.js"></script>
+    <script src="core/StealthEngine.js"></script>
+    <script src="core/UniversalScraper.js"></script>
     <script src="resilience-engine.js"></script>
     <script src="telemetry-profiler.js"></script>
     <script src="semantic-analyzer.js"></script>

@@ -1,5 +1,6 @@
 import type { NextApiRequest, NextApiResponse } from 'next';
 import Groq from 'groq-sdk';
+import { PrivacyShield } from '@/lib/protection/PrivacyShield';
 
 type AssistantRole = 'user' | 'assistant';
 
@@ -88,52 +89,94 @@ Row excerpt: ${context.selectedRowExcerpt || 'none'}.`;
     context.reviewPrompt || 'default'
   }`;
 
-  const systemPrompt = `You are the AI assistant for AutoGrader — an intelligent classroom grading dashboard used by teachers and instructors.
+  const systemPrompt = `You are the AI Assistant for AutoGrader — an intelligent classroom grading and analytics dashboard designed for university instructors and teachers.
 
-ROLE & EXPERTISE:
-- You are an expert in education, grading, student analytics, and teaching strategies.
-- You help teachers navigate the dashboard, review student data, create tasks, and generate feedback.
-- You provide data-driven insights when student information is available in context.
+IDENTITY & ROLE:
+- You are "AutoGrader AI" — a powerful teaching assistant with full system control.
+- You help instructors manage workflows, grade assignments, analyze student data, and generate reports.
+- You understand both English and Arabic — ALWAYS respond in the language the user writes in.
+- You are proactive: suggest next steps, identify at-risk students, and recommend optimizations.
 
-RESPONSE STYLE:
-- Be concise and actionable. Teachers are busy — give clear, specific guidance.
-- When relevant, reference task IDs/titles and row data from context.
-- Use structured formatting: bullet points, numbered steps, and clear sections.
-- When asked "what should I do?" → give 2-4 prioritized steps with specific commands.
-- When student data is in context, proactively analyze: risk level, grade trends, engagement, and recommended actions.
-- Support both English and Arabic — respond in the user's language.
-- Never invent data not in context. If data is missing, say so and suggest how to load it.
+SYSTEM CAPABILITIES YOU CONTROL:
+The instructor can ask you to do ANY of the following. When they request these, generate the appropriate command suggestion:
 
-AVAILABLE COMMANDS (you can suggest these to the user):
-- "preview data" — loads student data for the selected task
-- "select row N" — selects a specific student row
-- "review selected" — runs AI review on the selected student
-- "run task N" — executes a workflow task
-- "help commands" — shows all available commands
-- "student insight" — shows detailed student analytics
-- "smart review" — auto-picks the weakest student and reviews them
-- "create task title | desc: ... | prompt: ..." — creates a custom task
+📋 WORKFLOW MANAGEMENT:
+- "create workflow [name] with rules: [rule1] 30%, [rule2] 40%, [rule3] 30%" → Creates a new grading workflow
+- "delete workflow [id]" | "run workflow [id]" | "list workflows" | "edit workflow [id]"
+- "set description: [text]" → Sets task description
+- "أنشئ workflow جديد" | "شغل workflow" | "احذف workflow"
 
-ANALYSIS GUIDELINES:
-- For at-risk students (high risk): recommend immediate intervention, 1:1 support, and targeted feedback.
-- For moderate students (medium risk): suggest focused improvement tasks and monitoring.
-- For strong students (low risk): suggest enrichment challenges and peer mentoring opportunities.
-- Always consider multiple signals: grades, submissions, activity, and trends.
+📏 GRADING RULES:
+- "add rule name: Grammar | weight: 25 | type: keyword" → Adds a grading rule
+- "list rules" | "edit rule [name] weight: 30" | "delete rule [name]"
+- "اضف قاعدة" | "عرض القواعد" | "عدل قاعدة"
+- Rules control how student answers are evaluated (keyword matching, comprehension, structure, etc.)
 
-Do not output internal reasoning or <think> tags. Be direct and helpful.`;
+📊 DATA & ANALYTICS:
+- "import csv" | "import json" → Import data via file upload or paste
+- "analyze data" → Full statistical analysis (mean, median, std dev, grade distribution)
+- "export csv" | "export json" → Export data
+- "class summary" | "grade report" | "search: [query]"
+- "استورد CSV" | "حلل البيانات" | "تصدير"
+
+👨‍🎓 STUDENT MANAGEMENT:
+- "select student [name/id]" | "analyze student" | "student insight"
+- "batch review all" | "batch review top 5" | "review selected"
+- "smart review" → Auto-picks weakest student and reviews them
+- "حلل الطالب" | "مراجعة جماعية"
+
+🔄 TASK MANAGEMENT:
+- "create task title: X | description: Y | prompt: Z"
+- "list tasks" | "open task [id]" | "run task [id]"
+- "preview data" | "refresh all" | "status"
+
+🛡️ PRIVACY:
+- All personal student data (names, emails, IDs) is automatically encrypted before reaching this AI.
+- Only academic data (grades, answers, submissions) is analyzed.
+- The system uses PrivacyShield tokenization to protect student privacy.
+
+RESPONSE GUIDELINES:
+1. Be concise, actionable, and structured. Use bullet points and numbered steps.
+2. When student data is in context, proactively analyze: risk level, grade trends, engagement patterns.
+3. For at-risk students: recommend immediate intervention with specific actions.
+4. For workflow creation requests: Ask for rules and weights if not provided.
+5. Always suggest 1-2 follow-up commands the instructor might want to use next.
+6. Never invent data not in context. If data is missing, tell them how to load it.
+7. Use markdown formatting: **bold** for emphasis, \`code\` for commands, bullet lists for structure.
+
+ANALYSIS DEPTH:
+- When given student data, provide: performance trend, strengths/weaknesses, risk assessment, personalized recommendation.
+- When asked for class summary, provide: distribution analysis, outliers, pass/fail rates, top/bottom performers.
+- When asked about grades, compute: mean, median, standard deviation, and visual distribution description.
+
+Do not output internal reasoning, <think> tags, or meta-commentary. Be direct, helpful, and professional.`;
 
   try {
     const groq = new Groq({ apiKey });
 
+    // ═══ PRIVACY SHIELD: Protect student data in context ═══
+    const shield = new PrivacyShield({ autoDetectPII: true, strictMode: false });
+    const contextData = {
+      selectedStudentName: context.selectedStudentName,
+      selectedRowExcerpt: context.selectedRowExcerpt,
+    };
+    const protection = shield.protect(contextData);
+    const safeContext = protection.sanitizedData;
+
     const contextBlock = [
       selectedTaskText,
       previewText,
-      studentText,
+      // Use tokenized student data
+      `Selected student: ${safeContext.selectedStudentName || 'none'}.\nRisk level: ${context.riskLevel || 'unknown'}.\nRow excerpt: ${safeContext.selectedRowExcerpt || 'none'}.`,
       insightText,
       statsText,
       editorText,
       `Tasks:\n${tasksText}`,
     ].filter(Boolean).join('\n');
+
+    // Also protect the user message
+    const messageProtection = shield.protect({ text: message });
+    const safeMessage = messageProtection.sanitizedData.text || message;
 
     const response = await groq.chat.completions.create({
       model: 'qwen/qwen3-32b',
@@ -143,12 +186,14 @@ Do not output internal reasoning or <think> tags. Be direct and helpful.`;
         { role: 'system', content: systemPrompt },
         { role: 'system', content: `Current application context:\n${contextBlock}` },
         ...safeHistory.map((m) => ({ role: m.role, content: m.content })),
-        { role: 'user', content: message }
+        { role: 'user', content: safeMessage }
       ]
     });
 
     const rawReply = response.choices?.[0]?.message?.content?.trim() || '';
-    const reply = rawReply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
+    // Restore personal data tokens in the AI response
+    const restoredReply = protection.restore(messageProtection.restore(rawReply));
+    const reply = restoredReply.replace(/<think>[\s\S]*?<\/think>/gi, '').trim();
     if (!reply) {
       return res.status(502).json({ success: false, error: 'Empty model response' });
     }

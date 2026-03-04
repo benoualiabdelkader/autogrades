@@ -4,6 +4,7 @@ import { requireAuthWithRole, type AuthenticatedRequest } from '@/lib/api/auth-m
 import { rateLimit, RATE_LIMITS } from '@/lib/api/rate-limiter';
 import { withSecurityHeaders } from '@/lib/api/security-headers';
 import { logAiRequest } from '@/lib/api/audit-logger';
+import { PrivacyShield } from '@/lib/protection/PrivacyShield';
 
 type ChatRole = 'system' | 'user' | 'assistant';
 type ChatMessage = { role: ChatRole; content: string };
@@ -94,17 +95,30 @@ async function handler(req: AuthenticatedRequest, res: NextApiResponse) {
   }
 
   try {
+    // ═══ PRIVACY SHIELD: Protect personal data in messages ═══
+    const shield = new PrivacyShield({ autoDetectPII: true, strictMode: false });
+    const protectedMessages = messages.map(m => {
+      if (m.role === 'system') return m; // System prompts are our own — safe
+      const protection = shield.protect({ content: m.content });
+      return { ...m, content: protection.sanitizedData.content || m.content };
+    });
+
     const groq = new Groq({ apiKey });
     const maxTokens = getMaxTokens(body);
     const completion = await groq.chat.completions.create({
       model,
-      messages,
+      messages: protectedMessages,
       temperature: typeof body.temperature === 'number' ? body.temperature : 0.15,
       max_tokens: maxTokens,
       response_format: body.response_format
     });
 
-    const content = completion.choices?.[0]?.message?.content || '';
+    let content = completion.choices?.[0]?.message?.content || '';
+
+    // ═══ PRIVACY SHIELD: Restore personal data in response ═══
+    // Re-create protection to get the same token map
+    const fullProtection = shield.protect({ text: messages.map(m => m.content).join('\n') });
+    content = fullProtection.restore(content);
     
     logAiRequest(req, model, true, {
       messageCount: messages.length,
